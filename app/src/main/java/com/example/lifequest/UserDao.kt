@@ -38,4 +38,11 @@ interface UserDao {
     fun deleteQuest(quest: Quest): Int
     @Update
     fun updateQuest(quest: Quest): Int
+
+    // --- 履歴（ログ）用 ---
+    @Insert
+    fun insertQuestLog(log: QuestLog)
+
+    @Query("SELECT * FROM quest_logs ORDER BY completedAt DESC")
+    fun getAllQuestLogs(): Flow<List<QuestLog>>
 }

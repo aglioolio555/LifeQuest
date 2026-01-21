@@ -17,8 +17,8 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.GameViewModel
 import com.example.lifequest.Quest
 import com.example.lifequest.SoundManager
-import com.example.lifequest.ui.components.* // さっき作ったコンポーネントたち
-import com.example.lifequest.ui.dialogs.* // さっき作ったダイアログたち
+import com.example.lifequest.ui.components.* // StatusCard, QuestItem, Selectors, TimeInputRow
+import com.example.lifequest.ui.dialogs.* // QuestEditDialog, LevelUpDialog
 import com.example.lifequest.utils.formatDate
 import kotlinx.coroutines.delay
 
@@ -43,7 +43,7 @@ fun GameScreen(viewModel: GameViewModel) {
         previousLevel = status.level
     }
 
-    // タイマー更新
+    // タイマー表示用の現在時刻更新 (1秒ごと)
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -52,22 +52,30 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
-    // 入力フォーム状態
+    // --- 入力フォームの状態変数 ---
     var inputTitle by remember { mutableStateOf("") }
     var inputNote by remember { mutableStateOf("") }
     var inputDueDate by remember { mutableStateOf<Long?>(null) }
+
+    // ★目安時間の入力用
+    var inputHours by remember { mutableStateOf("") }
+    var inputMinutes by remember { mutableStateOf("") }
+
     var selectedDifficulty by remember { mutableIntStateOf(1) }
     var selectedRepeat by remember { mutableIntStateOf(0) }
 
+    // ダイアログ制御
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     var editingQuest by remember { mutableStateOf<Quest?>(null) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ステータスカード表示
+        // ステータス表示
         StatusCard(status)
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -78,10 +86,24 @@ fun GameScreen(viewModel: GameViewModel) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                OutlinedTextField(value = inputTitle, onValueChange = { inputTitle = it }, label = { Text("クエスト名") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                // タイトル
+                OutlinedTextField(
+                    value = inputTitle,
+                    onValueChange = { inputTitle = it },
+                    label = { Text("クエスト名") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                // 期限とリピート
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 期限設定
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AssistChip(
                             onClick = { showDatePicker = true },
@@ -95,19 +117,50 @@ fun GameScreen(viewModel: GameViewModel) {
                             }
                         }
                     }
+                    // リピート設定
                     RepeatSelector(currentMode = selectedRepeat, onModeSelected = { selectedRepeat = it })
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // ★目安時間入力 (TimeInputRow)
+                TimeInputRow(
+                    hours = inputHours,
+                    onHoursChange = { inputHours = it },
+                    minutes = inputMinutes,
+                    onMinutesChange = { inputMinutes = it }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 難易度
                 DifficultySelector(selectedDifficulty = selectedDifficulty, onDifficultySelected = { selectedDifficulty = it })
+
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // 追加ボタン
                 Button(
                     onClick = {
-                        viewModel.addQuest(inputTitle, inputNote, inputDueDate, selectedDifficulty, selectedRepeat)
+                        // 時間・分をミリ秒に変換して保存
+                        val h = inputHours.toLongOrNull() ?: 0L
+                        val m = inputMinutes.toLongOrNull() ?: 0L
+                        val estimatedMillis = (h * 60 * 60 * 1000) + (m * 60 * 1000)
+
+                        viewModel.addQuest(
+                            inputTitle,
+                            inputNote,
+                            inputDueDate,
+                            selectedDifficulty,
+                            selectedRepeat,
+                            estimatedMillis // ★渡す
+                        )
+
+                        // フォームリセット
                         inputTitle = ""
                         inputNote = ""
                         inputDueDate = null
+                        inputHours = ""   // ★リセット
+                        inputMinutes = "" // ★リセット
                         selectedDifficulty = 1
                         selectedRepeat = 0
                     },
@@ -122,12 +175,13 @@ fun GameScreen(viewModel: GameViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // リスト
+        // クエストリスト
         LazyColumn(
             contentPadding = PaddingValues(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(items = quests, key = { it.id }) { quest ->
+                // スワイプ削除のロジック
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = {
                         if (it == SwipeToDismissBoxValue.EndToStart) {
@@ -142,15 +196,20 @@ fun GameScreen(viewModel: GameViewModel) {
                     enableDismissFromStartToEnd = false,
                     backgroundContent = {
                         Box(
-                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer, shape = CardDefaults.shape).padding(horizontal = 16.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.errorContainer, shape = CardDefaults.shape)
+                                .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.CenterEnd
-                        ) { Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.onErrorContainer) }
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.onErrorContainer)
+                        }
                     },
                     content = {
                         QuestItem(
                             quest = quest,
                             currentTime = currentTime,
-                            onClick = { editingQuest = quest },
+                            onClick = { editingQuest = quest }, // タップで編集
                             onToggleTimer = { viewModel.toggleTimer(quest) },
                             onComplete = {
                                 soundManager.playCoinSound()
@@ -163,14 +222,23 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // 日付選択ダイアログ
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = { TextButton(onClick = { inputDueDate = datePickerState.selectedDateMillis; showDatePicker = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    inputDueDate = datePickerState.selectedDateMillis
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") }
+            }
         ) { DatePicker(state = datePickerState) }
     }
 
+    // 編集ダイアログ
     if (editingQuest != null) {
         QuestEditDialog(
             quest = editingQuest!!,

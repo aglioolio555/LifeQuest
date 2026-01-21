@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
 import com.example.lifequest.ui.components.DifficultySelector
 import com.example.lifequest.ui.components.RepeatSelector
+import com.example.lifequest.ui.components.TimeInputRow
 import com.example.lifequest.utils.formatDate
 
 @Composable
@@ -46,7 +47,12 @@ fun QuestEditDialog(
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dueDate)
-
+    var inputHours by remember {
+        mutableStateOf((quest.estimatedTime / (1000 * 60 * 60)).toString().let { if(it=="0") "" else it })
+    }
+    var inputMinutes by remember {
+        mutableStateOf(((quest.estimatedTime / (1000 * 60)) % 60).toString().let { if(it=="0") "" else it })
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("クエスト修正") },
@@ -64,13 +70,33 @@ fun QuestEditDialog(
                     )
                     RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                TimeInputRow(
+                    hours = inputHours,
+                    onHoursChange = { inputHours = it },
+                    minutes = inputMinutes,
+                    onMinutesChange = { inputMinutes = it }
+                )
                 Spacer(modifier = Modifier.height(16.dp))
                 DifficultySelector(selectedDifficulty = difficulty, onDifficultySelected = { difficulty = it })
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(quest.copy(title = title, note = note, dueDate = dueDate, difficulty = difficulty, repeatMode = repeatMode)) },
+                onClick = {
+                    val h = inputHours.toLongOrNull() ?: 0L
+                    val m = inputMinutes.toLongOrNull() ?: 0L
+                    val newEstimated = (h * 60 * 60 * 1000) + (m * 60 * 1000)
+
+                    onConfirm(quest.copy(
+                        title = title,
+                        note = note,
+                        dueDate = dueDate,
+                        estimatedTime = newEstimated, // ★更新
+                        difficulty = difficulty,
+                        repeatMode = repeatMode
+                    ))
+                          },
                 enabled = title.isNotBlank()
             ) { Text("保存") }
         },
