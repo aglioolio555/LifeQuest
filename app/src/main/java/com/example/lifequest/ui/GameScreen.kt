@@ -1,5 +1,7 @@
 package com.example.lifequest.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult // 追加
+import androidx.activity.result.contract.ActivityResultContracts // 追加
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share // 追加
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,12 +55,22 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // ★ CSVエクスポート用のランチャー定義
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        // ユーザーが保存先を選んだあとに呼ばれる
+        if (uri != null) {
+            viewModel.exportLogsToCsv(context, uri)
+        }
+    }
+
     // --- 入力フォームの状態変数 ---
     var inputTitle by remember { mutableStateOf("") }
     var inputNote by remember { mutableStateOf("") }
     var inputDueDate by remember { mutableStateOf<Long?>(null) }
 
-    // ★目安時間の入力用
+    // 目安時間の入力用
     var inputHours by remember { mutableStateOf("") }
     var inputMinutes by remember { mutableStateOf("") }
 
@@ -78,7 +91,20 @@ fun GameScreen(viewModel: GameViewModel) {
         // ステータス表示
         StatusCard(status)
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // ★ CSV出力ボタン (ステータスの下に配置)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = {
+                // ファイル名を指定して保存画面を開く
+                exportLauncher.launch("quest_logs_backup.csv")
+            }) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("CSV出力")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 入力カード
         Card(
@@ -123,7 +149,7 @@ fun GameScreen(viewModel: GameViewModel) {
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ★目安時間入力 (TimeInputRow)
+                // 目安時間入力 (TimeInputRow)
                 TimeInputRow(
                     hours = inputHours,
                     onHoursChange = { inputHours = it },
@@ -152,15 +178,15 @@ fun GameScreen(viewModel: GameViewModel) {
                             inputDueDate,
                             selectedDifficulty,
                             selectedRepeat,
-                            estimatedMillis // ★渡す
+                            estimatedMillis
                         )
 
                         // フォームリセット
                         inputTitle = ""
                         inputNote = ""
                         inputDueDate = null
-                        inputHours = ""   // ★リセット
-                        inputMinutes = "" // ★リセット
+                        inputHours = ""
+                        inputMinutes = ""
                         selectedDifficulty = 1
                         selectedRepeat = 0
                     },

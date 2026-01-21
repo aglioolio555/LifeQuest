@@ -6,6 +6,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import android.content.Context // 追加
+import android.net.Uri // 追加
+import java.io.BufferedWriter // 追加
+import java.io.OutputStreamWriter // 追加
+import com.example.lifequest.utils.formatDate // 既存の日付フォーマットを利用
 
 class GameViewModel(private val dao: UserDao) : ViewModel() {
 
@@ -185,5 +190,45 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
             REPEAT_MONTHLY -> calendar.add(java.util.Calendar.MONTH, 1)
         }
         return calendar.timeInMillis
+    }
+    fun exportLogsToCsv(context: Context, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. データを取得
+                val logs = dao.getQuestLogsList()
+
+                // 2. ファイルへの書き込み準備
+                val outputStream = context.contentResolver.openOutputStream(uri)
+                outputStream?.use { stream ->
+                    val writer = BufferedWriter(OutputStreamWriter(stream, Charsets.UTF_8))
+
+                    // BOM (Excelでの文字化け防止) を書き込む
+                    writer.write("\uFEFF")
+
+                    // 3. ヘッダー行を書き込み
+                    writer.write("ID,クエスト名,難易度,目標時間(秒),実績時間(秒),完了日\n")
+
+                    // 4. データ行を書き込み
+                    for (log in logs) {
+                        // カンマが含まれる場合に備えてダブルクォーテーションで囲む処理
+                        val safeTitle = "\"${log.title.replace("\"", "\"\"")}\""
+                        val difficultyText = when (log.difficulty) {
+                            DIFF_EASY -> "EASY"
+                            DIFF_HARD -> "HARD"
+                            else -> "NORMAL"
+                        }
+                        val estimatedSec = log.estimatedTime / 1000
+                        val actualSec = log.actualTime / 1000
+                        val dateStr = formatDate(log.completedAt)
+
+                        val line = "${log.id},$safeTitle,$difficultyText,$estimatedSec,$actualSec,$dateStr\n"
+                        writer.write(line)
+                    }
+                    writer.flush()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace() // エラーハンドリング（本番ではToastなどで通知すると良い）
+            }
+        }
     }
 }

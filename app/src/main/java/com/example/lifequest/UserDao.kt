@@ -1,10 +1,10 @@
 package com.example.lifequest
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import androidx.room.Delete
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -24,10 +24,10 @@ interface UserDao {
         SELECT * FROM quests 
         WHERE isCompleted = 0 
         ORDER BY 
-            CASE WHEN dueDate IS NULL THEN 1 ELSE 0 END ASC, -- 1. まず「期限あり」を最優先
-            dueDate ASC,                                     -- 2. 次に「日付が近い順」
-            CASE WHEN repeatMode = 0 THEN 0 ELSE 1 END ASC,  -- 3. 日付が同じなら「通常」を優先
-            id DESC                                          -- 4. 最後に「新しい順」
+            CASE WHEN dueDate IS NULL THEN 1 ELSE 0 END ASC,
+            dueDate ASC,
+            CASE WHEN repeatMode = 0 THEN 0 ELSE 1 END ASC,
+            id DESC
     """)
     fun getActiveQuests(): Flow<List<Quest>>
 
@@ -36,6 +36,7 @@ interface UserDao {
 
     @Delete
     fun deleteQuest(quest: Quest): Int
+
     @Update
     fun updateQuest(quest: Quest): Int
 
@@ -45,4 +46,10 @@ interface UserDao {
 
     @Query("SELECT * FROM quest_logs ORDER BY completedAt DESC")
     fun getAllQuestLogs(): Flow<List<QuestLog>>
+
+    // ★重要: CSV出力用
+    // @JvmSuppressWildcards をつけることで、生成されるJavaコードとの型の不一致を防ぎます
+    @Query("SELECT * FROM quest_logs ORDER BY completedAt DESC")
+    @JvmSuppressWildcards
+    suspend fun getQuestLogsList(): List<QuestLog>
 }
