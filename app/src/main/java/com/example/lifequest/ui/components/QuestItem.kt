@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver // ★追加
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
@@ -40,11 +41,15 @@ fun QuestItem(
         quest.accumulatedTime
     }
 
-    // タイマー実行中は背景色を少し強調
-    val containerColor = if (isRunning)
+    // ★修正ポイント: タイマー実行中の背景色を「不透明」にする
+    // 単に alpha=0.3f だと透けてしまうため、compositeOver を使って
+    // 「背景色(Surface)の上に薄い色を重ねた色」を計算して設定します。
+    val containerColor = if (isRunning) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-    else
+            .compositeOver(MaterialTheme.colorScheme.surface)
+    } else {
         MaterialTheme.colorScheme.surface
+    }
 
     Card(
         modifier = Modifier
@@ -104,7 +109,7 @@ fun QuestItem(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // ★追加: 目安時間 (設定されている場合のみ表示)
+                    // 目安時間 (設定されている場合のみ表示)
                     if (quest.estimatedTime > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -117,7 +122,7 @@ fun QuestItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // 詳細行 (難易度・期限・報酬)
+                // 詳細行 (難易度・期限)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 難易度
                     Text(
