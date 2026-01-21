@@ -16,6 +16,7 @@ data class Quest(
     val expReward: Int,
     val goldReward: Int,
     val difficulty: Int = 1,
+    val category: Int = 0,
     val repeatMode: Int = 0,
     val accumulatedTime: Long = 0L,
     val lastStartTime: Long? = null,

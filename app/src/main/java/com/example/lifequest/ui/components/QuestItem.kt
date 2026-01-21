@@ -11,10 +11,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.compositeOver // ★追加
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
+import com.example.lifequest.QuestCategory
 import com.example.lifequest.utils.formatDate
 import com.example.lifequest.utils.formatDuration
 
@@ -24,16 +25,15 @@ fun QuestItem(
     currentTime: Long,
     onClick: () -> Unit,
     onToggleTimer: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    isLarge: Boolean = false
 ) {
-    // 難易度に応じた色とラベル
     val (difficultyColor, difficultyText) = when (quest.difficulty) {
         0 -> MaterialTheme.colorScheme.primary to "EASY"
         2 -> MaterialTheme.colorScheme.error to "HARD"
         else -> MaterialTheme.colorScheme.secondary to "NORMAL"
     }
 
-    // タイマー計算: 実行中なら (現在時刻 - 開始時刻) を加算して表示
     val isRunning = quest.lastStartTime != null
     val displayTime = if (isRunning) {
         quest.accumulatedTime + (currentTime - quest.lastStartTime!!)
@@ -41,9 +41,9 @@ fun QuestItem(
         quest.accumulatedTime
     }
 
-    // ★修正ポイント: タイマー実行中の背景色を「不透明」にする
-    // 単に alpha=0.3f だと透けてしまうため、compositeOver を使って
-    // 「背景色(Surface)の上に薄い色を重ねた色」を計算して設定します。
+    // カテゴリ情報の取得
+    val categoryEnum = QuestCategory.fromInt(quest.category)
+
     val containerColor = if (isRunning) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
             .compositeOver(MaterialTheme.colorScheme.surface)
@@ -51,16 +51,22 @@ fun QuestItem(
         MaterialTheme.colorScheme.surface
     }
 
+    val cardPadding = if (isLarge) 24.dp else 16.dp
+    val titleStyle = if (isLarge) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium
+    val timeStyle = if (isLarge) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge
+    val iconSize = if (isLarge) 48.dp else 40.dp
+    val completeIconSize = if (isLarge) 36.dp else 28.dp
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick), // タップで編集
+            .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isRunning) 6.dp else 2.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(cardPadding)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -68,7 +74,7 @@ fun QuestItem(
             IconButton(
                 onClick = onToggleTimer,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(iconSize)
                     .padding(end = 8.dp),
                 colors = IconButtonDefaults.iconButtonColors(
                     containerColor = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
@@ -76,9 +82,9 @@ fun QuestItem(
                 )
             ) {
                 if (isRunning) {
-                    Text("||", fontWeight = FontWeight.Bold) // 簡易停止アイコン
+                    Text("||", fontWeight = FontWeight.Bold, style = if(isLarge) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyLarge)
                 } else {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "開始")
+                    Icon(Icons.Default.PlayArrow, contentDescription = "開始", modifier = Modifier.size(if(isLarge) 32.dp else 24.dp))
                 }
             }
 
@@ -86,62 +92,68 @@ fun QuestItem(
             Column(modifier = Modifier.weight(1f)) {
                 // タイトル行
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = quest.title, style = MaterialTheme.typography.titleMedium)
-                    // リピートアイコン
+                    // カテゴリアイコン
+                    Icon(
+                        imageVector = categoryEnum.icon,
+                        contentDescription = categoryEnum.label,
+                        modifier = Modifier.size(if(isLarge) 24.dp else 20.dp),
+                        tint = categoryEnum.color
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(text = quest.title, style = titleStyle)
+
                     if (quest.repeatMode > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "繰り返し",
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(if(isLarge) 20.dp else 16.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
-                // 時間表示行 (現在時間 / 目標時間)
+                Spacer(modifier = Modifier.height(if(isLarge) 8.dp else 4.dp))
+
+                // 時間表示行
                 Row(verticalAlignment = Alignment.Bottom) {
-                    // 経過時間 (タイマー中は色を変える)
                     Text(
                         text = formatDuration(displayTime),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = timeStyle,
                         color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
-
-                    // 目安時間 (設定されている場合のみ表示)
                     if (quest.estimatedTime > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "/ 目標 ${formatDuration(quest.estimatedTime)}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = if(isLarge) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(if(isLarge) 8.dp else 4.dp))
 
-                // 詳細行 (難易度・期限)
+                // 詳細行
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 難易度
                     Text(
                         text = "[$difficultyText]",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = if(isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
                         color = difficultyColor,
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    // 期限
                     if (quest.dueDate != null) {
                         Icon(
                             imageVector = Icons.Default.DateRange,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(if(isLarge) 18.dp else 14.dp),
                             tint = MaterialTheme.colorScheme.tertiary
                         )
                         Text(
                             text = " ${formatDate(quest.dueDate!!)} ",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = if(isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.tertiary
                         )
                     }
@@ -149,11 +161,11 @@ fun QuestItem(
             }
 
             // 右側: 完了ボタン
-            IconButton(onClick = onComplete) {
+            IconButton(onClick = onComplete, modifier = Modifier.size(completeIconSize)) {
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "完了",
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(completeIconSize),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }

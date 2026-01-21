@@ -1,53 +1,106 @@
 package com.example.lifequest.ui.components
 
+import androidx.compose.foundation.horizontalScroll // ★追加
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState // ★追加
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp // ★追加
+import com.example.lifequest.QuestCategory // ★追加
+import com.example.lifequest.QuestDifficulty
+import com.example.lifequest.RepeatMode
 
-// 難易度選択
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DifficultySelector(selectedDifficulty: Int, onDifficultySelected: (Int) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        FilterChip(
-            selected = selectedDifficulty == 0, onClick = { onDifficultySelected(0) },
-            label = { Text("EASY") },
-            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primaryContainer)
-        )
-        FilterChip(
-            selected = selectedDifficulty == 1, onClick = { onDifficultySelected(1) },
-            label = { Text("NORMAL") },
-            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer)
-        )
-        FilterChip(
-            selected = selectedDifficulty == 2, onClick = { onDifficultySelected(2) },
-            label = { Text("HARD") },
-            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.errorContainer)
-        )
+fun DifficultySelector(
+    selectedDifficulty: Int,
+    onDifficultySelected: (Int) -> Unit
+) {
+    Column {
+        Text("難易度", style = MaterialTheme.typography.labelMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuestDifficulty.entries.forEach { diff ->
+                FilterChip(
+                    selected = diff.value == selectedDifficulty,
+                    onClick = { onDifficultySelected(diff.value) },
+                    label = { Text(diff.name) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = if (diff.value == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
+            }
+        }
     }
 }
 
-// リピート選択
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RepeatSelector(currentMode: Int, onModeSelected: (Int) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val modes = listOf("繰り返し: なし", "毎日", "毎週", "毎月")
+fun RepeatSelector(
+    currentMode: Int,
+    onModeSelected: (Int) -> Unit
+) {
+    val mode = RepeatMode.fromInt(currentMode)
+    var expanded = false // 簡易実装のため、ここではドロップダウンではなく順次切り替え方式にします
 
-    Box {
-        AssistChip(
-            onClick = { expanded = true },
-            label = { Text(modes[currentMode]) },
-            leadingIcon = if (currentMode != 0) { { Icon(Icons.Default.Refresh, contentDescription = null) } } else null
+    AssistChip(
+        onClick = {
+            // 0->1->2->3->0 の順で切り替え
+            val nextMode = (currentMode + 1) % RepeatMode.entries.size
+            onModeSelected(nextMode)
+        },
+        label = {
+            val text = when (mode) {
+                RepeatMode.NONE -> "繰り返しなし"
+                RepeatMode.DAILY -> "毎日"
+                RepeatMode.WEEKLY -> "毎週"
+                RepeatMode.MONTHLY -> "毎月"
+            }
+            Text(text)
+        },
+        leadingIcon = {
+            if (mode != RepeatMode.NONE) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (mode != RepeatMode.NONE) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            modes.forEachIndexed { index, label ->
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = { onModeSelected(index); expanded = false },
-                    leadingIcon = if (index != 0) { { Icon(Icons.Default.Refresh, contentDescription = null) } } else null
+    )
+}
+
+// ★追加したカテゴリセレクター
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategorySelector(
+    selectedCategory: Int,
+    onCategorySelected: (Int) -> Unit
+) {
+    Column {
+        Text("カテゴリ", style = MaterialTheme.typography.labelMedium)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()), // 横スクロール対応
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            QuestCategory.entries.forEach { category ->
+                FilterChip(
+                    selected = category.id == selectedCategory,
+                    onClick = { onCategorySelected(category.id) },
+                    label = { Text(category.label) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = category.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (category.id == selectedCategory) MaterialTheme.colorScheme.onPrimaryContainer else category.color
+                        )
+                    }
                 )
             }
         }

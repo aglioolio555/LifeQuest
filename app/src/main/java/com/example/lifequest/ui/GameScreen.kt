@@ -20,7 +20,7 @@ import com.example.lifequest.GameViewModel
 import com.example.lifequest.Quest
 import com.example.lifequest.SoundManager
 import com.example.lifequest.UserStatus
-import com.example.lifequest.ui.components.* // UrgentQuestCard, QuestItem, StatusCard等がここに含まれます
+import com.example.lifequest.ui.components.*
 import com.example.lifequest.ui.dialogs.*
 import com.example.lifequest.utils.formatDate
 import kotlinx.coroutines.delay
@@ -96,7 +96,6 @@ fun GameScreen(viewModel: GameViewModel) {
                 Screen.HOME -> {
                     HomeScreen(
                         status = status,
-                        // DAOでソート済みなので、先頭が「一番緊急（期限が近い/古い）」なクエスト
                         urgentQuest = quests.firstOrNull(),
                         currentTime = currentTime,
                         onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
@@ -129,9 +128,9 @@ fun GameScreen(viewModel: GameViewModel) {
                             modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
                         )
                         QuestInputForm(
-                            onAddQuest = { title, note, date, diff, repeat, time ->
-                                viewModel.addQuest(title, note, date, diff, repeat, time)
-                                // 追加したら一覧へ戻る
+                            // 引数に category を追加して受け取る
+                            onAddQuest = { title, note, date, diff, repeat, category, time ->
+                                viewModel.addQuest(title, note, date, diff, repeat, category, time)
                                 currentScreen = Screen.LIST
                             }
                         )
@@ -183,7 +182,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // 2. 最優先クエスト表示エリア
         Text(
@@ -195,7 +194,7 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         if (urgentQuest != null) {
-            // ★専用のリッチなカードコンポーネントを使用
+            // リッチなカードを表示
             UrgentQuestCard(
                 quest = urgentQuest,
                 currentTime = currentTime,
@@ -244,7 +243,7 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestInputForm(
-    onAddQuest: (String, String, Long?, Int, Int, Long) -> Unit
+    onAddQuest: (String, String, Long?, Int, Int, Int, Long) -> Unit // category(Int)を追加
 ) {
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -253,6 +252,7 @@ fun QuestInputForm(
     var minutes by remember { mutableStateOf("") }
     var difficulty by remember { mutableIntStateOf(1) }
     var repeatMode by remember { mutableIntStateOf(0) }
+    var category by remember { mutableIntStateOf(0) } // カテゴリの状態
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
@@ -298,6 +298,10 @@ fun QuestInputForm(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            // カテゴリ選択
+            CategorySelector(selectedCategory = category, onCategorySelected = { category = it })
+            Spacer(modifier = Modifier.height(8.dp))
+
             DifficultySelector(selectedDifficulty = difficulty, onDifficultySelected = { difficulty = it })
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -307,8 +311,9 @@ fun QuestInputForm(
                     val m = minutes.toLongOrNull() ?: 0L
                     val estimatedMillis = (h * 60 * 60 * 1000) + (m * 60 * 1000)
 
-                    onAddQuest(title, note, dueDate, difficulty, repeatMode, estimatedMillis)
+                    onAddQuest(title, note, dueDate, difficulty, repeatMode, category, estimatedMillis)
 
+                    // フォームリセット
                     title = ""
                     note = ""
                     dueDate = null
@@ -316,6 +321,7 @@ fun QuestInputForm(
                     minutes = ""
                     difficulty = 1
                     repeatMode = 0
+                    category = 0
                 },
                 enabled = title.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
@@ -374,7 +380,6 @@ fun QuestListContent(
                 }
             )
 
-            // タイマー実行中はスワイプ操作を禁止する
             val isTimerRunning = quest.lastStartTime != null
 
             SwipeToDismissBox(

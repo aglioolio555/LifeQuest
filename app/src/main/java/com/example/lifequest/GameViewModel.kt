@@ -24,7 +24,7 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         viewModelScope.launch {
             dao.getUserStatus().collect { status ->
                 if (status == null) {
-                    // 初回データ作成（insertの戻り値は無視）
+                    // 初回データ作成
                     launch(Dispatchers.IO) { dao.insert(UserStatus()) }
                 } else {
                     _uiState.value = status
@@ -47,11 +47,11 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         dueDate: Long?,
         difficultyInt: Int,
         repeatModeInt: Int,
+        categoryInt: Int, // ★カテゴリIDを受け取る引数を追加
         estimatedTime: Long
     ) {
         if (title.isBlank()) return
 
-        // Enumを利用して報酬を取得（if文やwhen文が消えました）
         val difficulty = QuestDifficulty.fromInt(difficultyInt)
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -60,10 +60,11 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
                 note = note,
                 dueDate = dueDate,
                 estimatedTime = estimatedTime,
-                expReward = difficulty.exp,   // Enumから取得
-                goldReward = difficulty.gold, // Enumから取得
+                expReward = difficulty.exp,
+                goldReward = difficulty.gold,
                 difficulty = difficulty.value,
-                repeatMode = repeatModeInt
+                repeatMode = repeatModeInt,
+                category = categoryInt // ★カテゴリを保存
             )
             dao.insertQuest(newQuest)
         }
@@ -114,12 +115,13 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
                 difficulty = quest.difficulty,
                 estimatedTime = quest.estimatedTime,
                 actualTime = finalActualTime,
+                category = quest.category, // ★履歴にもカテゴリ情報を記録
                 completedAt = System.currentTimeMillis()
             )
             dao.insertQuestLog(log)
 
             // 3. レベルアップ計算とステータス更新
-            // ★ロジックをUserStatusに移動したため、ここは1行で済みます
+            // UserStatus側のロジックを利用して新しいステータスを計算
             val newStatus = _uiState.value.addExperience(quest.expReward, quest.goldReward)
             dao.update(newStatus)
 
@@ -128,10 +130,11 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
             if (repeatMode == RepeatMode.NONE) {
                 dao.deleteQuest(quest)
             } else {
-                // ★日付計算ロジックもEnumに移動済み
+                // 次回日付の計算
                 val baseDate = quest.dueDate ?: System.currentTimeMillis()
                 val nextDate = repeatMode.calculateNextDueDate(baseDate)
 
+                // 繰り返し設定がある場合、期限を更新してリセット
                 dao.updateQuest(quest.copy(
                     dueDate = nextDate,
                     accumulatedTime = 0L,
@@ -144,8 +147,9 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
     // CSVエクスポート
     fun exportLogsToCsv(context: Context, uri: Uri) {
         viewModelScope.launch {
-            val logs = dao.getQuestLogsList()
-            // ★処理をCsvExporterに移譲
+            // 同期メソッドで全履歴を取得
+            val logs = dao.getAllLogsSync()
+            // CsvExporterクラスを使って書き出し
             CsvExporter(context).export(uri, logs)
         }
     }

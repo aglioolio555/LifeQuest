@@ -10,5 +10,6 @@ data class QuestLog(
     val difficulty: Int,        // 難易度
     val estimatedTime: Long,    // 目安時間 (目標)
     val actualTime: Long,       // 実際にかかった時間 (実績)
+    val category: Int = 0,
     val completedAt: Long = System.currentTimeMillis() // 完了日時
 )

@@ -1,6 +1,6 @@
 package com.example.lifequest.ui.components
 
-import androidx.compose.foundation.BorderStroke // 追加
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
+import com.example.lifequest.QuestCategory
 import com.example.lifequest.utils.formatDate
 import com.example.lifequest.utils.formatDuration
 
@@ -38,6 +39,8 @@ fun UrgentQuestCard(
         quest.accumulatedTime
     }
 
+    val categoryEnum = QuestCategory.fromInt(quest.category)
+
     val containerColor = if (isRunning) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
             .compositeOver(MaterialTheme.colorScheme.surface)
@@ -54,22 +57,23 @@ fun UrgentQuestCard(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- ヘッダー: 難易度と期限 ---
+            // --- ヘッダー: カテゴリ・難易度・期限 ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SuggestionChip(
-                    onClick = { },
-                    label = { Text(difficultyText, fontWeight = FontWeight.Bold) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        labelColor = difficultyColor
-                    ),
-                    // ★修正: SuggestionChipDefaults.suggestionChipBorder() をやめ、BorderStroke を直接指定
-                    border = BorderStroke(1.dp, difficultyColor)
+                // カテゴリチップ
+                AssistChip(
+                    onClick = {},
+                    label = { Text(categoryEnum.label) },
+                    leadingIcon = {
+                        Icon(categoryEnum.icon, null, tint = categoryEnum.color)
+                    },
+                    border = BorderStroke(1.dp, categoryEnum.color.copy(alpha = 0.5f))
                 )
 
+                // 期限
                 if (quest.dueDate != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -97,6 +101,14 @@ fun UrgentQuestCard(
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
+            )
+
+            // 難易度バッジ
+            SuggestionChip(
+                onClick = {},
+                label = { Text(difficultyText, style = MaterialTheme.typography.labelSmall) },
+                colors = SuggestionChipDefaults.suggestionChipColors(labelColor = difficultyColor),
+                border = BorderStroke(1.dp, difficultyColor.copy(alpha = 0.5f))
             )
 
             // --- 詳細メモ (あれば表示) ---
