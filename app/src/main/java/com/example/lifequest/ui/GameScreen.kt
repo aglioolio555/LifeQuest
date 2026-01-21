@@ -7,29 +7,39 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.GameViewModel
 import com.example.lifequest.Quest
 import com.example.lifequest.SoundManager
-import com.example.lifequest.ui.components.*
+import com.example.lifequest.UserStatus
+import com.example.lifequest.ui.components.* // UrgentQuestCard, QuestItem, StatusCard等がここに含まれます
 import com.example.lifequest.ui.dialogs.*
 import com.example.lifequest.utils.formatDate
 import kotlinx.coroutines.delay
+
+// 画面の定義
+enum class Screen(val label: String, val icon: ImageVector) {
+    HOME("ホーム", Icons.Default.Home),
+    LIST("一覧", Icons.Default.List),
+    ADD("受注", Icons.Default.AddCircle)
+}
 
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
     // 1. データと状態の監視
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()
+
+    // 現在の画面 (初期値はホーム)
+    var currentScreen by remember { mutableStateOf(Screen.HOME) }
 
     // 2. 効果音とタイマー管理
     val context = LocalContext.current
@@ -62,52 +72,76 @@ fun GameScreen(viewModel: GameViewModel) {
     // 4. ダイアログ管理
     var editingQuest by remember { mutableStateOf<Quest?>(null) }
 
-    // --- 画面構成 ---
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // ステータスカード
-        StatusCard(status)
-
-        // CSVボタン
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            TextButton(onClick = { exportLauncher.launch("quest_logs_backup.csv") }) {
-                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("CSV出力")
+    // --- 画面構成 (Scaffoldでボトムバーを設置) ---
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                Screen.entries.forEach { screen ->
+                    NavigationBarItem(
+                        icon = { Icon(screen.icon, contentDescription = screen.label) },
+                        label = { Text(screen.label) },
+                        selected = currentScreen == screen,
+                        onClick = { currentScreen = screen }
+                    )
+                }
             }
         }
+    ) { innerPadding ->
+        // 画面の切り替え
+        Box(modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize()) {
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 入力フォーム (切り出し済み)
-        QuestInputForm(
-            onAddQuest = { title, note, date, diff, repeat, time ->
-                viewModel.addQuest(title, note, date, diff, repeat, time)
+            when (currentScreen) {
+                Screen.HOME -> {
+                    HomeScreen(
+                        status = status,
+                        // DAOでソート済みなので、先頭が「一番緊急（期限が近い/古い）」なクエスト
+                        urgentQuest = quests.firstOrNull(),
+                        currentTime = currentTime,
+                        onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
+                        onEdit = { editingQuest = it },
+                        onToggleTimer = { viewModel.toggleTimer(it) },
+                        onComplete = {
+                            soundManager.playCoinSound()
+                            viewModel.completeQuest(it)
+                        }
+                    )
+                }
+                Screen.LIST -> {
+                    QuestListContent(
+                        quests = quests,
+                        currentTime = currentTime,
+                        onEdit = { editingQuest = it },
+                        onToggleTimer = { viewModel.toggleTimer(it) },
+                        onComplete = {
+                            soundManager.playCoinSound()
+                            viewModel.completeQuest(it)
+                        },
+                        onDelete = { viewModel.deleteQuest(it) }
+                    )
+                }
+                Screen.ADD -> {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "新規クエスト受注",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
+                        )
+                        QuestInputForm(
+                            onAddQuest = { title, note, date, diff, repeat, time ->
+                                viewModel.addQuest(title, note, date, diff, repeat, time)
+                                // 追加したら一覧へ戻る
+                                currentScreen = Screen.LIST
+                            }
+                        )
+                    }
+                }
             }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // リスト表示 (切り出し済み)
-        QuestListContent(
-            quests = quests,
-            currentTime = currentTime,
-            onEdit = { editingQuest = it },
-            onToggleTimer = { viewModel.toggleTimer(it) },
-            onComplete = {
-                soundManager.playCoinSound()
-                viewModel.completeQuest(it)
-            },
-            onDelete = { viewModel.deleteQuest(it) }
-        )
+        }
     }
 
-    // 編集ダイアログ
+    // 編集ダイアログ (全画面共通)
     if (editingQuest != null) {
         QuestEditDialog(
             quest = editingQuest!!,
@@ -120,14 +154,98 @@ fun GameScreen(viewModel: GameViewModel) {
     }
 }
 
-// --- 以下、切り出したサブコンポーネント ---
+// --- ホーム画面コンポーネント ---
+@Composable
+fun HomeScreen(
+    status: UserStatus,
+    urgentQuest: Quest?,
+    currentTime: Long,
+    onExportCsv: () -> Unit,
+    onEdit: (Quest) -> Unit,
+    onToggleTimer: (Quest) -> Unit,
+    onComplete: (Quest) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // 1. ステータス表示
+        StatusCard(status)
 
+        // CSVボタン
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            TextButton(onClick = onExportCsv) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("CSV出力")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // 2. 最優先クエスト表示エリア
+        Text(
+            text = "⚠️ CURRENT OBJECTIVE ⚠️",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (urgentQuest != null) {
+            // ★専用のリッチなカードコンポーネントを使用
+            UrgentQuestCard(
+                quest = urgentQuest,
+                currentTime = currentTime,
+                onToggleTimer = { onToggleTimer(urgentQuest) },
+                onComplete = { onComplete(urgentQuest) },
+                onEdit = { onEdit(urgentQuest) }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "今すぐ取り掛かりましょう！",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        } else {
+            // クエストがない場合
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(32.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("全てのクエストを完了しました！", style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("「受注」タブから新しい目標を追加してください。", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+// --- 入力フォーム ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestInputForm(
     onAddQuest: (String, String, Long?, Int, Int, Long) -> Unit
 ) {
-    // 入力状態はこのフォーム内だけで管理する
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf<Long?>(null) }
@@ -144,7 +262,6 @@ fun QuestInputForm(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // タイトル
             OutlinedTextField(
                 value = title, onValueChange = { title = it },
                 label = { Text("クエスト名") },
@@ -153,7 +270,6 @@ fun QuestInputForm(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 期限とリピート
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -176,18 +292,15 @@ fun QuestInputForm(
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 時間入力
             TimeInputRow(
                 hours = hours, onHoursChange = { hours = it },
                 minutes = minutes, onMinutesChange = { minutes = it }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 難易度
             DifficultySelector(selectedDifficulty = difficulty, onDifficultySelected = { difficulty = it })
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 追加ボタン
             Button(
                 onClick = {
                     val h = hours.toLongOrNull() ?: 0L
@@ -196,7 +309,6 @@ fun QuestInputForm(
 
                     onAddQuest(title, note, dueDate, difficulty, repeatMode, estimatedMillis)
 
-                    // フォームリセット
                     title = ""
                     note = ""
                     dueDate = null
@@ -208,8 +320,9 @@ fun QuestInputForm(
                 enabled = title.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Text(" クエスト受注")
+                Icon(Icons.Default.AddCircle, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("クエストを受注する")
             }
         }
     }
@@ -230,6 +343,7 @@ fun QuestInputForm(
     }
 }
 
+// --- リスト表示 ---
 @Composable
 fun QuestListContent(
     quests: List<Quest>,
@@ -239,8 +353,15 @@ fun QuestListContent(
     onComplete: (Quest) -> Unit,
     onDelete: (Quest) -> Unit
 ) {
+    if (quests.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("クエストがありません", color = MaterialTheme.colorScheme.secondary)
+        }
+        return
+    }
+
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(items = quests, key = { it.id }) { quest ->
@@ -253,13 +374,12 @@ fun QuestListContent(
                 }
             )
 
-            // ★ タイマー実行中はスワイプ削除を禁止するロジック
+            // タイマー実行中はスワイプ操作を禁止する
             val isTimerRunning = quest.lastStartTime != null
 
             SwipeToDismissBox(
                 state = dismissState,
                 enableDismissFromStartToEnd = false,
-                // ★ ここでジェスチャーを制御
                 gesturesEnabled = !isTimerRunning,
                 backgroundContent = {
                     Box(
