@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 class GameViewModel(private val dao: UserDao) : ViewModel() {
     // 難易度定数
@@ -129,13 +130,13 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
 
     // 次の日付を計算するヘルパー関数
     private fun calculateNextDueDate(currentDate: Long, mode: Int): Long {
-        val calendar = java.util.Calendar.getInstance()
+        val calendar = Calendar.getInstance()
         calendar.timeInMillis = currentDate
 
         when (mode) {
-            REPEAT_DAILY -> calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
-            REPEAT_WEEKLY -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, 1)
-            REPEAT_MONTHLY -> calendar.add(java.util.Calendar.MONTH, 1)
+            REPEAT_DAILY -> calendar.add(Calendar.DAY_OF_YEAR, 1)
+            REPEAT_WEEKLY -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            REPEAT_MONTHLY -> calendar.add(Calendar.MONTH, 1)
         }
         return calendar.timeInMillis
     }
