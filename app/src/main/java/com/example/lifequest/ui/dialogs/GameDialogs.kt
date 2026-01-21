@@ -14,6 +14,12 @@ import com.example.lifequest.ui.components.DifficultySelector
 import com.example.lifequest.ui.components.RepeatSelector
 import com.example.lifequest.ui.components.TimeInputRow
 import com.example.lifequest.utils.formatDate
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import com.example.lifequest.QuestWithSubtasks
+import com.example.lifequest.Subtask
 
 @Composable
 fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
@@ -35,10 +41,15 @@ fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestEditDialog(
-    quest: Quest,
+    questWithSubtasks: QuestWithSubtasks, // ★型変更
     onDismiss: () -> Unit,
-    onConfirm: (Quest) -> Unit
+    onConfirm: (Quest) -> Unit,
+    onAddSubtask: (String) -> Unit, // ★追加
+    onDeleteSubtask: (Subtask) -> Unit // ★追加
 ) {
+    val quest = questWithSubtasks.quest
+    val subtasks = questWithSubtasks.subtasks
+
     var title by remember { mutableStateOf(quest.title) }
     var note by remember { mutableStateOf(quest.note) }
     var dueDate by remember { mutableStateOf(quest.dueDate) }
@@ -53,15 +64,24 @@ fun QuestEditDialog(
     var inputMinutes by remember {
         mutableStateOf(((quest.estimatedTime / (1000 * 60)) % 60).toString().let { if(it=="0") "" else it })
     }
+
+    // サブタスク追加用ステート
+    var newSubtaskTitle by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("クエスト修正") },
         text = {
-            Column {
+            // LazyColumnだとダイアログ内でスクロールしやすいが、AlertDialogのtext内で使うと競合する場合があるため、
+            // 要素数が少ない前提でColumn + verticalScrollを使うのが無難です。
+            // ここでは簡易的にColumnを使います。
+            Column(modifier = Modifier.fillMaxWidth()) { // 必要に応じて .verticalScroll(rememberScrollState())
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("クエスト名") }, singleLine = true)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("メモ") }, maxLines = 3)
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // --- 時間・日付など ---
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     AssistChip(
                         onClick = { showDatePicker = true },
@@ -70,15 +90,49 @@ fun QuestEditDialog(
                     )
                     RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
                 }
-                Spacer(modifier = Modifier.height(8.dp))
                 TimeInputRow(
                     hours = inputHours,
                     onHoursChange = { inputHours = it },
                     minutes = inputMinutes,
                     onMinutesChange = { inputMinutes = it }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
                 DifficultySelector(selectedDifficulty = difficulty, onDifficultySelected = { difficulty = it })
+
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // --- サブタスク編集エリア ---
+                Text("サブタスク", style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newSubtaskTitle,
+                        onValueChange = { newSubtaskTitle = it },
+                        placeholder = { Text("新しいサブタスク") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    IconButton(onClick = {
+                        if (newSubtaskTitle.isNotBlank()) {
+                            onAddSubtask(newSubtaskTitle)
+                            newSubtaskTitle = ""
+                        }
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "追加")
+                    }
+                }
+
+                // 既存サブタスクリスト
+                subtasks.forEach { sub ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("・ ${sub.title}", modifier = Modifier.weight(1f))
+                        IconButton(onClick = { onDeleteSubtask(sub) }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -92,11 +146,11 @@ fun QuestEditDialog(
                         title = title,
                         note = note,
                         dueDate = dueDate,
-                        estimatedTime = newEstimated, // ★更新
+                        estimatedTime = newEstimated,
                         difficulty = difficulty,
                         repeatMode = repeatMode
                     ))
-                          },
+                },
                 enabled = title.isNotBlank()
             ) { Text("保存") }
         },

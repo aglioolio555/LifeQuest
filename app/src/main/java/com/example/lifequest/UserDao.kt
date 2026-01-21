@@ -4,29 +4,29 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
     // --- ユーザーステータス ---
-    // Flowはもともと非同期ストリームなので suspend は不要（そのままでOK）
     @Query("SELECT * FROM user_status WHERE id = 0")
     fun getUserStatus(): Flow<UserStatus?>
 
-    // ★修正: suspend を削除し、戻り値を Long にする
     @Insert
     fun insert(status: UserStatus): Long
 
-    // ★修正: suspend を削除し、戻り値を Int にする
     @Update
     fun update(status: UserStatus): Int
 
-    // ★修正: suspend を削除し、戻り値を Int にする
     @Query("DELETE FROM user_status")
     fun deleteUserStatus(): Int
 
     // --- クエスト（タスク）用 ---
+
+    // ★修正: 戻り値を QuestWithSubtasks に変更し、@Transactionを追加
+    @Transaction
     @Query("""
         SELECT * FROM quests 
         WHERE isCompleted = 0 
@@ -36,36 +36,38 @@ interface UserDao {
             CASE WHEN repeatMode = 0 THEN 0 ELSE 1 END ASC, 
             id DESC
     """)
-    fun getActiveQuests(): Flow<List<Quest>>
+    fun getActiveQuests(): Flow<List<QuestWithSubtasks>>
 
-    // ★修正: suspend を削除、戻り値 Long
     @Insert
     fun insertQuest(quest: Quest): Long
 
-    // ★修正: suspend を削除、戻り値 Int
     @Update
     fun updateQuest(quest: Quest): Int
 
-    // ★修正: suspend を削除、戻り値 Int
     @Delete
     fun deleteQuest(quest: Quest): Int
 
-    // ★修正: suspend を削除、戻り値 Int
     @Query("DELETE FROM quests")
     fun deleteAllQuests(): Int
 
-    // --- 履歴（ログ）用 ---
+    // --- ★追加: サブタスク用 ---
+    @Insert
+    fun insertSubtask(subtask: Subtask): Long
 
-    // ★修正: suspend を削除、戻り値 Long
+    @Update
+    fun updateSubtask(subtask: Subtask): Int
+
+    @Delete
+    fun deleteSubtask(subtask: Subtask): Int
+
+    // --- 履歴（ログ）用 ---
     @Insert
     fun insertQuestLog(log: QuestLog): Long
 
     @Query("SELECT * FROM quest_logs ORDER BY completedAt DESC")
     fun getAllQuestLogs(): Flow<List<QuestLog>>
 
-    // --- バックアップ・復元用（同期取得） ---
-    // これらは suspend なしでリストを返す通常のメソッドにします
-
+    // --- バックアップ・復元用 ---
     @Query("SELECT * FROM quests")
     fun getAllQuestsSync(): List<Quest>
 
@@ -75,15 +77,12 @@ interface UserDao {
     @Query("SELECT * FROM user_status WHERE id = 0")
     fun getUserStatusSync(): UserStatus?
 
-    // ★修正: suspend を削除、戻り値 Int
     @Query("DELETE FROM quest_logs")
     fun deleteAllLogs(): Int
 
-    // ★修正: suspend を削除、戻り値 List<Long>
     @Insert
     fun insertQuests(quests: List<Quest>): List<Long>
 
-    // ★修正: suspend を削除、戻り値 List<Long>
     @Insert
     fun insertLogs(logs: List<QuestLog>): List<Long>
 }
