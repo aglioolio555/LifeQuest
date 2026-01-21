@@ -94,9 +94,33 @@ fun GameScreen(viewModel: GameViewModel) {
 
             when (currentScreen) {
                 Screen.HOME -> {
+                    // ★修正: 型を Long? から Int? に変更
+                    var currentUrgentId by remember { mutableStateOf<Int?>(null) }
+
+                    // クエストリストが更新されたら再評価
+                    val urgentQuest = remember(quests) {
+                        if (quests.isEmpty()) return@remember null
+
+                        val topQuest = quests.first()
+                        // 先頭のクエストと同じ優先度条件（期限やリピート設定）を持つものをすべて抽出
+                        val candidates = quests.takeWhile { it.isSamePriorityAs(topQuest) }
+
+                        // 現在表示中のクエストが候補の中にまだあれば、それを維持（更新されたインスタンスを取得）
+                        // これにより、タイマー更新時などは同じクエストが表示され続けます
+                        val current = candidates.find { it.id == currentUrgentId }
+                        if (current != null) {
+                            current
+                        } else {
+                            // 候補の中からランダムに選ぶ（初回や、前のクエスト完了時など）
+                            val newQuest = candidates.random()
+                            currentUrgentId = newQuest.id
+                            newQuest
+                        }
+                    }
+
                     HomeScreen(
                         status = status,
-                        urgentQuest = quests.firstOrNull(),
+                        urgentQuest = urgentQuest,
                         currentTime = currentTime,
                         onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
                         onEdit = { editingQuest = it },
@@ -104,6 +128,8 @@ fun GameScreen(viewModel: GameViewModel) {
                         onComplete = {
                             soundManager.playCoinSound()
                             viewModel.completeQuest(it)
+                            // 完了したらIDリセットして次を再抽選
+                            currentUrgentId = null
                         }
                     )
                 }
@@ -128,7 +154,6 @@ fun GameScreen(viewModel: GameViewModel) {
                             modifier = Modifier.padding(bottom = 16.dp, start = 8.dp)
                         )
                         QuestInputForm(
-                            // 引数に category を追加して受け取る
                             onAddQuest = { title, note, date, diff, repeat, category, time ->
                                 viewModel.addQuest(title, note, date, diff, repeat, category, time)
                                 currentScreen = Screen.LIST
@@ -151,6 +176,25 @@ fun GameScreen(viewModel: GameViewModel) {
             }
         )
     }
+}
+
+// --- 優先度判定の拡張関数 ---
+// DAOのソート順序: 期限なし(後) < 期限あり(前), 期限日時(昇順), 繰り返しなし(前) < 繰り返しあり(後)
+private fun Quest.isSamePriorityAs(other: Quest): Boolean {
+    // 1. 期限の有無が同じか
+    val thisHasDate = this.dueDate != null
+    val otherHasDate = other.dueDate != null
+    if (thisHasDate != otherHasDate) return false
+
+    // 2. 期限の日時が同じか（期限付き同士なら）
+    if (thisHasDate && this.dueDate != other.dueDate) return false
+
+    // 3. 繰り返しかどうかが同じか
+    val thisRecurring = this.repeatMode != 0
+    val otherRecurring = other.repeatMode != 0
+    if (thisRecurring != otherRecurring) return false
+
+    return true
 }
 
 // --- ホーム画面コンポーネント ---
@@ -243,7 +287,7 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestInputForm(
-    onAddQuest: (String, String, Long?, Int, Int, Int, Long) -> Unit // category(Int)を追加
+    onAddQuest: (String, String, Long?, Int, Int, Int, Long) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -252,7 +296,7 @@ fun QuestInputForm(
     var minutes by remember { mutableStateOf("") }
     var difficulty by remember { mutableIntStateOf(1) }
     var repeatMode by remember { mutableIntStateOf(0) }
-    var category by remember { mutableIntStateOf(0) } // カテゴリの状態
+    var category by remember { mutableIntStateOf(0) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
@@ -298,7 +342,6 @@ fun QuestInputForm(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // カテゴリ選択
             CategorySelector(selectedCategory = category, onCategorySelected = { category = it })
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -313,7 +356,6 @@ fun QuestInputForm(
 
                     onAddQuest(title, note, dueDate, difficulty, repeatMode, category, estimatedMillis)
 
-                    // フォームリセット
                     title = ""
                     note = ""
                     dueDate = null
