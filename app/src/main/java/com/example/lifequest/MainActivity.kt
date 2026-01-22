@@ -3,10 +3,8 @@ package com.example.lifequest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
 import com.example.lifequest.ui.GameScreen
 import com.example.lifequest.ui.theme.LifeQuestTheme
@@ -15,26 +13,34 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // DB初期化
+        // データベースのインスタンス化
         val db = Room.databaseBuilder(
             applicationContext,
-            AppDatabase::class.java,
-            "lifequest-db"
-        ).fallbackToDestructiveMigration().build()
+            AppDatabase::class.java, "lifequest-db"
+        )
+            .fallbackToDestructiveMigration() // マイグレーションが必要な場合は適切に設定
+            .build()
 
-        // ViewModel初期化
-        val viewModel = GameViewModel(db.userDao())
+        // リポジトリのインスタンス化
+        val repository = GameRepository(db.userDao())
 
-        // UI表示
+        // ViewModelのファクトリ作成
+        val viewModelFactory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                if (modelClass.isAssignableFrom(GameViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return GameViewModel(repository) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
+            }
+        }
+
+        // ViewModelの取得
+        val viewModel = ViewModelProvider(this, viewModelFactory)[GameViewModel::class.java]
+
         setContent {
             LifeQuestTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    // 処理はすべてGameScreenにお任せ
-                    GameScreen(viewModel)
-                }
+                GameScreen(viewModel = viewModel)
             }
         }
     }

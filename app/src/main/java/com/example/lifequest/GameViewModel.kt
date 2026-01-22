@@ -4,136 +4,126 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-// タイマーの状態管理用クラス
-data class TimerState(
-    val mode: FocusMode = FocusMode.RUSH,
-    val initialSeconds: Long = 25 * 60L,
-    val remainingSeconds: Long = 25 * 60L,
-    val isRunning: Boolean = false,
-    val isBreak: Boolean = false
-)
+// RepositoryとManagerを依存性として受け取る
+class GameViewModel(
+    private val repository: GameRepository,
+    private val timerManager: FocusTimerManager = FocusTimerManager()
+) : ViewModel() {
 
-class GameViewModel(private val dao: UserDao) : ViewModel() {
+    companion object {
+        private const val EXP_PER_MINUTE_FACTOR = 1.67
+        private const val MIN_EXP_REWARD = 10
+        private const val DEFAULT_EXP_REWARD = 25
+        private const val CYCLE_BONUS_EXP = 15
+    }
 
-    private val _uiState = MutableStateFlow(UserStatus())
-    val uiState: StateFlow<UserStatus> = _uiState
+    // --- State ---
 
-    private val _questList = MutableStateFlow<List<QuestWithSubtasks>>(emptyList())
-    val questList: StateFlow<List<QuestWithSubtasks>> = _questList
+    // ★修正: RepositoryのFlowをStateFlowに変換します。
+    // これにより GameScreen で collectAsState() を初期値なしで呼べるようになります。
+    val uiState: StateFlow<UserStatus> = repository.userStatus
+        .map { it ?: UserStatus() } // nullの場合は初期値を返す
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = UserStatus()
+        )
 
-    // ★ポモドーロ用ステート
-    private val _timerState = MutableStateFlow(TimerState())
-    val timerState: StateFlow<TimerState> = _timerState
+    val questList: StateFlow<List<QuestWithSubtasks>> = repository.activeQuests
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-    private var timerJob: Job? = null
+    // タイマー状態はManagerから委譲
+    val timerState = timerManager.timerState
+
     private var currentActiveQuestId: Int? = null
 
     init {
+        // 初期データの監視などはRepositoryのFlowを利用するため、initでの明示的なcollectは
+        // ComposeのcollectAsStateを利用する場合は不要になる場合もあるが、
+        // ここではデータがない場合の初期作成ロジックだけ残す
         viewModelScope.launch {
-            dao.getUserStatus().collect { status ->
-                if (status == null) {
-                    launch(Dispatchers.IO) { dao.insert(UserStatus()) }
-                } else {
-                    _uiState.value = status
-                }
+            repository.userStatus.collect {
+                if (it == null) repository.insertUserStatus(UserStatus())
             }
         }
 
+        // クエスト切り替え時のタイマー自動設定の監視
         viewModelScope.launch {
-            dao.getActiveQuests().collect { quests ->
-                _questList.value = quests
-
-                // クエストリストが更新されたら、一番上のクエストに合わせてモードを自動設定
-                // (すでにタイマーが動いている場合は変更しない)
+            repository.activeQuests.collect { quests ->
                 val topQuest = quests.firstOrNull()?.quest
-                if (topQuest != null && currentActiveQuestId != topQuest.id && !_timerState.value.isRunning) {
+                if (topQuest != null && currentActiveQuestId != topQuest.id) {
                     currentActiveQuestId = topQuest.id
-                    initializeTimerMode(topQuest.estimatedTime)
+                    timerManager.initializeModeBasedOnQuest(topQuest.estimatedTime)
                 }
             }
         }
     }
 
-    // ★モード自動判定ロジック
-    private fun initializeTimerMode(estimatedTime: Long) {
-        // 60分(3600000ms)未満ならRush, 以上ならDeep Dive
-        val mode = if (estimatedTime < 60 * 60 * 1000) FocusMode.RUSH else FocusMode.DEEP_DIVE
-        val seconds = mode.minutes * 60L
-        _timerState.value = _timerState.value.copy(
-            mode = mode,
-            initialSeconds = seconds,
-            remainingSeconds = seconds,
-            isBreak = false,
-            isRunning = false
-        )
-    }
+    // --- Timer Actions ---
 
-    // ★モード手動切り替え
-    fun toggleTimerMode() {
-        if (_timerState.value.isRunning) return // 実行中は変更不可
-
-        val nextMode = _timerState.value.mode.next()
-        val seconds = nextMode.minutes * 60L
-        _timerState.value = _timerState.value.copy(
-            mode = nextMode,
-            initialSeconds = seconds,
-            remainingSeconds = seconds,
-            isBreak = false
-        )
-    }
-
-    // ★タイマー制御 (カウントダウン / カウントアップ)
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
-        if (_timerState.value.isRunning) {
-            // 停止処理
-            timerJob?.cancel()
-            _timerState.value = _timerState.value.copy(isRunning = false)
-            // 経過時間をQuestに保存
+        if (timerState.value.isRunning) {
+            // 停止: タイマーを止めて、経過時間をDB保存
+            timerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
         } else {
-            // 開始処理
-            _timerState.value = _timerState.value.copy(isRunning = true)
-            // 最終開始時刻を記録
+            // 開始: 開始時間をDB保存し、タイマーを起動
             updateQuestStartTime(quest)
 
-            timerJob = viewModelScope.launch(Dispatchers.Default) {
-                while (isActive) {
-                    delay(1000L)
-                    val currentState = _timerState.value
-
-                    if (currentState.mode == FocusMode.COUNT_UP) {
-                        // カウントアップモード
-                        // (UI表示はQuestEntityのaccumulatedTime + 経過時間を使うため、ここではState更新のみ)
-                        // 実装簡略化のため、COUNT_UP時はremainingSecondsを増やして「経過時間」として扱うことも可能だが
-                        // UrgentQuestCard側で existing logic を使う
-                    } else {
-                        // カウントダウンモード (Rush / Deep / Break)
-                        if (currentState.remainingSeconds > 0) {
-                            _timerState.value = currentState.copy(
-                                remainingSeconds = currentState.remainingSeconds - 1
-                            )
-                        } else {
-                            // ★タイマー終了時の処理
-                            handleTimerFinish(quest, soundManager)
-                            break
-                        }
-                    }
+            timerManager.startTimer(
+                scope = viewModelScope,
+                onFinish = {
+                    // タイマー終了時のコールバック（ViewModelが具体的な処理を決定）
+                    handleTimerFinish(quest, soundManager)
                 }
-            }
+            )
         }
     }
 
+    fun toggleTimerMode() {
+        timerManager.toggleMode()
+    }
+
+    private fun handleTimerFinish(quest: Quest, soundManager: SoundManager?) {
+        // 1. 経過時間を確定
+        updateQuestAccumulatedTime(quest)
+
+        // 2. 演出と報酬
+        soundManager?.playTimerFinishSound()
+        grantCycleBonusExp()
+
+        // 3. 休憩モードへ移行
+        if (!timerState.value.isBreak) {
+            timerManager.startBreak(
+                scope = viewModelScope,
+                onFinish = {
+                    // 休憩終了時
+                    soundManager?.playTimerFinishSound()
+                    // 次の集中に向けてリセット
+                    timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                }
+            )
+        } else {
+            // 休憩が終わっていた場合のリセット
+            timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+        }
+    }
+
+    // --- Quest / User Actions (Delegated to Repository) ---
+
     private fun updateQuestStartTime(quest: Quest) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.updateQuest(quest.copy(lastStartTime = System.currentTimeMillis()))
+        viewModelScope.launch {
+            repository.updateQuest(quest.copy(lastStartTime = System.currentTimeMillis()))
         }
     }
 
@@ -141,169 +131,79 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         val now = System.currentTimeMillis()
         if (quest.lastStartTime != null) {
             val diff = now - quest.lastStartTime
-            viewModelScope.launch(Dispatchers.IO) {
-                dao.updateQuest(quest.copy(accumulatedTime = quest.accumulatedTime + diff, lastStartTime = null))
+            viewModelScope.launch {
+                repository.updateQuest(quest.copy(accumulatedTime = quest.accumulatedTime + diff, lastStartTime = null))
             }
         }
     }
 
-    // ★集中終了時の報酬と休憩への遷移
-    private fun handleTimerFinish(quest: Quest, soundManager: SoundManager?) {
-        val currentState = _timerState.value
-
-        // タイマー停止
-        timerJob?.cancel()
-        updateQuestAccumulatedTime(quest) // 時間を保存
-
-        if (!currentState.isBreak) {
-            // 集中終了 -> 休憩へ
-            soundManager?.playTimerFinishSound() // 効果音
-
-            // 即時報酬 (小EXP付与)
-            viewModelScope.launch(Dispatchers.IO) {
-                val currentStatus = _uiState.value
-                val bonusExp = 15 // 1サイクルの報酬
-                dao.update(currentStatus.addExperience(bonusExp))
+    private fun grantCycleBonusExp() {
+        viewModelScope.launch {
+            val currentStatus = repository.getUserStatusSync() // 同期取得メソッドが必要、あるいはFlowから取る
+            currentStatus?.let {
+                repository.updateUserStatus(it.addExperience(CYCLE_BONUS_EXP))
             }
-
-            // 休憩モード設定
-            val breakMinutes = currentState.mode.breakMinutes
-            val breakSeconds = breakMinutes * 60L
-
-            _timerState.value = currentState.copy(
-                remainingSeconds = breakSeconds,
-                initialSeconds = breakSeconds,
-                isBreak = true,
-                isRunning = true,
-                mode = FocusMode.BREAK // UI表示用
-            )
-
-            // 休憩タイマー自動開始
-            timerJob = viewModelScope.launch(Dispatchers.Default) {
-                while (isActive && _timerState.value.remainingSeconds > 0) {
-                    delay(1000L)
-                    _timerState.value = _timerState.value.copy(
-                        remainingSeconds = _timerState.value.remainingSeconds - 1
-                    )
-                }
-                if (_timerState.value.remainingSeconds <= 0L) {
-                    // 休憩終了
-                    soundManager?.playTimerFinishSound()
-                    _timerState.value = _timerState.value.copy(isRunning = false, isBreak = false)
-                    // 次の集中モードへ戻す (自動判定ロジックで戻るか、手動でRushに戻す)
-                    initializeTimerMode(quest.estimatedTime)
-                }
-            }
-
-        } else {
-            // 休憩終了 (手動停止された場合など)
-            _timerState.value = currentState.copy(isRunning = false, isBreak = false)
-            initializeTimerMode(quest.estimatedTime)
         }
     }
 
-    // --- 以下、既存のメソッド ---
+    // --- CRUD Wrappers ---
 
-    fun addQuest(
-        title: String,
-        note: String,
-        dueDate: Long?,
-        repeatModeInt: Int,
-        categoryInt: Int,
-        estimatedTime: Long,
-        subtaskTitles: List<String> = emptyList()
-    ) {
+    fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
-
-        val calculatedExp = if (estimatedTime > 0) {
-            val minutes = estimatedTime / (1000 * 60)
-            (minutes * 1.67).toInt().coerceAtLeast(10)
-        } else {
-            25
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val newQuest = Quest(
-                title = title,
-                note = note,
-                dueDate = dueDate,
-                estimatedTime = estimatedTime,
-                expReward = calculatedExp,
-                repeatMode = repeatModeInt,
-                category = categoryInt
+        val exp = calculateExpReward(estimatedTime)
+        viewModelScope.launch {
+            repository.insertQuest(
+                Quest(title = title, note = note, dueDate = dueDate, estimatedTime = estimatedTime, expReward = exp, repeatMode = repeatMode, category = category),
+                subtasks
             )
-            val questId = dao.insertQuest(newQuest).toInt()
-
-            subtaskTitles.forEach { subTitle ->
-                if (subTitle.isNotBlank()) {
-                    dao.insertSubtask(Subtask(questId = questId, title = subTitle))
-                }
-            }
         }
     }
 
     fun completeQuest(quest: Quest) {
-        timerJob?.cancel() // タイマー停止
-        _timerState.value = _timerState.value.copy(isRunning = false)
-
-        viewModelScope.launch(Dispatchers.IO) {
-            var finalActualTime = quest.accumulatedTime
-            if (quest.lastStartTime != null) {
-                finalActualTime += (System.currentTimeMillis() - quest.lastStartTime)
-            }
-
-            val log = QuestLog(
-                title = quest.title,
-                estimatedTime = quest.estimatedTime,
-                actualTime = finalActualTime,
-                category = quest.category,
-                completedAt = System.currentTimeMillis()
-            )
-            dao.insertQuestLog(log)
-
-            val newStatus = _uiState.value.addExperience(quest.expReward)
-            dao.update(newStatus)
-
-            val repeatMode = RepeatMode.fromInt(quest.repeatMode)
-            if (repeatMode == RepeatMode.NONE) {
-                dao.deleteQuest(quest)
-            } else {
-                val baseDate = quest.dueDate ?: System.currentTimeMillis()
-                val nextDate = repeatMode.calculateNextDueDate(baseDate)
-                dao.updateQuest(quest.copy(
-                    dueDate = nextDate,
-                    accumulatedTime = 0L,
-                    lastStartTime = null
-                ))
-            }
-        }
-    }
-
-    fun addSubtask(questId: Int, title: String) {
-        if (title.isBlank()) return
-        viewModelScope.launch(Dispatchers.IO) { dao.insertSubtask(Subtask(questId = questId, title = title)) }
-    }
-
-    fun toggleSubtask(subtask: Subtask) {
-        viewModelScope.launch(Dispatchers.IO) { dao.updateSubtask(subtask.copy(isCompleted = !subtask.isCompleted)) }
-    }
-
-    fun deleteSubtask(subtask: Subtask) {
-        viewModelScope.launch(Dispatchers.IO) { dao.deleteSubtask(subtask) }
-    }
-
-    fun updateQuest(quest: Quest) {
-        viewModelScope.launch(Dispatchers.IO) { dao.updateQuest(quest) }
-    }
-
-    fun deleteQuest(quest: Quest) {
-        viewModelScope.launch(Dispatchers.IO) { dao.deleteQuest(quest) }
-    }
-
-    fun exportLogsToCsv(context: Context, uri: Uri) {
+        timerManager.stopTimer() // クエスト完了時はタイマー強制停止
         viewModelScope.launch {
-            val logs = dao.getAllLogsSync()
-            CsvExporter(context).export(uri, logs)
+            val finalTime = calculateFinalActualTime(quest)
+
+            // ログ保存
+            repository.insertQuestLog(
+                QuestLog(title = quest.title, estimatedTime = quest.estimatedTime, actualTime = finalTime, category = quest.category, completedAt = System.currentTimeMillis())
+            )
+
+            // 経験値付与
+            val status = repository.getUserStatusSync()
+            status?.let { repository.updateUserStatus(it.addExperience(quest.expReward)) }
+
+            // 繰り返し or 削除
+            val repeat = RepeatMode.fromInt(quest.repeatMode)
+            if (repeat == RepeatMode.NONE) {
+                repository.deleteQuest(quest)
+            } else {
+                val nextDate = repeat.calculateNextDueDate(quest.dueDate ?: System.currentTimeMillis())
+                repository.updateQuest(quest.copy(dueDate = nextDate, accumulatedTime = 0L, lastStartTime = null))
+            }
         }
+    }
+
+    fun addSubtask(questId: Int, title: String) = viewModelScope.launch { repository.insertSubtask(questId, title) }
+    fun toggleSubtask(subtask: Subtask) = viewModelScope.launch { repository.updateSubtask(subtask.copy(isCompleted = !subtask.isCompleted)) }
+    fun deleteSubtask(subtask: Subtask) = viewModelScope.launch { repository.deleteSubtask(subtask) }
+    fun updateQuest(quest: Quest) = viewModelScope.launch { repository.updateQuest(quest) }
+    fun deleteQuest(quest: Quest) = viewModelScope.launch { repository.deleteQuest(quest) }
+    fun exportLogsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportLogsToCsv(context, uri) }
+
+    // --- Helper Logic ---
+    private fun calculateExpReward(estimatedTime: Long): Int {
+        return if (estimatedTime > 0) {
+            val minutes = estimatedTime / (1000 * 60)
+            (minutes * EXP_PER_MINUTE_FACTOR).toInt().coerceAtLeast(MIN_EXP_REWARD)
+        } else DEFAULT_EXP_REWARD
+    }
+
+    private fun calculateFinalActualTime(quest: Quest): Long {
+        var time = quest.accumulatedTime
+        if (quest.lastStartTime != null) {
+            time += (System.currentTimeMillis() - quest.lastStartTime)
+        }
+        return time
     }
 }
