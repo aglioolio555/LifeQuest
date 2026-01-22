@@ -33,7 +33,7 @@ import com.example.lifequest.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 
 @Composable
-fun GameScreen(viewModel: MainViewModel) {
+fun MainScreen(viewModel: MainViewModel) {
     // 状態の監視
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()

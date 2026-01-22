@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
 import com.example.lifequest.data.local.AppDatabase
 import com.example.lifequest.data.repository.MainRepository
-import com.example.lifequest.ui.GameScreen
+import com.example.lifequest.ui.MainScreen
 import com.example.lifequest.ui.theme.LifeQuestTheme
 import com.example.lifequest.utils.UsageStatsHelper
 import com.example.lifequest.viewmodel.MainViewModel
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
             .fallbackToDestructiveMigration()
             .build()
 
-        val repository = MainRepository(db.userDao(), db.breakActivityDao(), db.dailyQuestDao())
+        val repository = MainRepository(db.userStatusDao(), questDao = db.questDao(), questLogDao = db.questLogDao(), db.breakActivityDao(), db.dailyQuestDao())
 
         val usageStatsHelper = UsageStatsHelper(applicationContext)
 
@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LifeQuestTheme {
-                GameScreen(viewModel = viewModel)
+                MainScreen(viewModel = viewModel)
             }
         }
     }
