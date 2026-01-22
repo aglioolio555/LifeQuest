@@ -25,14 +25,14 @@ import kotlinx.coroutines.delay
 fun GameScreen(viewModel: GameViewModel) {
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()
-    val timerState by viewModel.timerState.collectAsState() // ポモドーロ状態を監視
+    val timerState by viewModel.timerState.collectAsState()
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
     DisposableEffect(Unit) { onDispose { soundManager.release() } }
 
-    // レベルアップ演出
+    // レベルアップ時の演出
     var previousLevel by remember { mutableIntStateOf(status.level) }
     LaunchedEffect(status.level) {
         if (status.level > previousLevel && previousLevel > 0) {
@@ -41,7 +41,7 @@ fun GameScreen(viewModel: GameViewModel) {
         previousLevel = status.level
     }
 
-    // UI更新用のタイマー（1秒ごとに再描画をトリガー）
+    // 1秒ごとのUI更新用
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -62,14 +62,17 @@ fun GameScreen(viewModel: GameViewModel) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                Screen.entries.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
-                        selected = currentScreen == screen,
-                        onClick = { currentScreen = screen }
-                    )
+            // 集中画面 (FOCUS) 表示時はボトムバーを隠す
+            if (currentScreen != Screen.FOCUS) {
+                NavigationBar {
+                    Screen.entries.filter { it != Screen.FOCUS }.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.label) },
+                            label = { Text(screen.label) },
+                            selected = currentScreen == screen,
+                            onClick = { currentScreen = screen }
+                        )
+                    }
                 }
             }
         }
@@ -79,12 +82,18 @@ fun GameScreen(viewModel: GameViewModel) {
                 Screen.HOME -> {
                     HomeScreen(
                         status = status,
-                        urgentQuestData = quests.firstOrNull(), // リストの先頭を「現在の目的」とする
+                        urgentQuestData = quests.firstOrNull(),
                         timerState = timerState,
                         currentTime = currentTime,
                         onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
                         onEdit = { editingQuestData = it },
-                        onToggleTimer = { quest -> viewModel.toggleTimer(quest, soundManager) },
+                        // ホームの開始ボタンで集中画面へ遷移
+                        onToggleTimer = { quest ->
+                            if (!timerState.isRunning) {
+                                viewModel.toggleTimer(quest, soundManager)
+                            }
+                            currentScreen = Screen.FOCUS
+                        },
                         onComplete = { quest ->
                             soundManager.playCoinSound()
                             viewModel.completeQuest(quest)
@@ -98,10 +107,13 @@ fun GameScreen(viewModel: GameViewModel) {
                         quests = quests,
                         currentTime = currentTime,
                         onEdit = { editingQuestData = it },
-                        onToggleTimer = { viewModel.toggleTimer(it, soundManager) },
-                        onComplete = {
+                        onToggleTimer = { quest ->
+                            viewModel.toggleTimer(quest, soundManager)
+                            currentScreen = Screen.FOCUS
+                        },
+                        onComplete = { quest ->
                             soundManager.playCoinSound()
-                            viewModel.completeQuest(it)
+                            viewModel.completeQuest(quest)
                         },
                         onDelete = { viewModel.deleteQuest(it) },
                         onSubtaskToggle = { viewModel.toggleSubtask(it) }
@@ -122,6 +134,27 @@ fun GameScreen(viewModel: GameViewModel) {
                             }
                         )
                         Spacer(modifier = Modifier.height(32.dp))
+                    }
+                }
+                Screen.FOCUS -> {
+                    val activeQuest = quests.firstOrNull()
+                    if (activeQuest != null) {
+                        FocusScreen(
+                            questWithSubtasks = activeQuest,
+                            timerState = timerState,
+                            currentTime = currentTime,
+                            onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
+                            onModeToggle = { viewModel.toggleTimerMode() },
+                            onComplete = {
+                                soundManager.playCoinSound()
+                                viewModel.completeQuest(activeQuest.quest)
+                                currentScreen = Screen.HOME
+                            },
+                            onSubtaskToggle = { viewModel.toggleSubtask(it) },
+                            onExit = { currentScreen = Screen.HOME }
+                        )
+                    } else {
+                        currentScreen = Screen.HOME
                     }
                 }
             }
@@ -177,17 +210,15 @@ fun HomeScreen(
         if (urgentQuestData != null) {
             UrgentQuestCard(
                 questWithSubtasks = urgentQuestData,
-                timerState = timerState,
                 currentTime = currentTime,
                 onToggleTimer = { onToggleTimer(urgentQuestData.quest) },
                 onComplete = { onComplete(urgentQuestData.quest) },
                 onEdit = { onEdit(urgentQuestData) },
-                onSubtaskToggle = onSubtaskToggle,
-                onModeToggle = onModeToggle
+                onSubtaskToggle = onSubtaskToggle
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = if(timerState.isBreak) "しっかりと休息をとりましょう" else "今すぐ取り掛かりましょう！",
+                text = if(timerState.isBreak) "しっかりと休憩をとりましょう" else "集中画面へ移行して開始しましょう",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.secondary
             )
@@ -229,7 +260,7 @@ fun QuestInputForm(
             OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("メモ") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
 
             Spacer(modifier = Modifier.height(16.dp))
-            Text("目安時間 (報酬EXPと初期タイマーに影響)", style = MaterialTheme.typography.labelLarge)
+            Text("目安時間", style = MaterialTheme.typography.labelLarge)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(15L, 30L, 60L).forEach { mins ->
                     FilterChip(
@@ -307,7 +338,6 @@ fun QuestInputForm(
 
                     onAddQuest(title, note, dueDate, repeatMode, category, finalTime, subtasks)
 
-                    // リセット
                     title = ""; note = ""; dueDate = null; repeatMode = 0; category = 0; subtasks = listOf(""); otherHours = ""; otherMinutes = ""
                     isOtherTimeSelected = false; selectedTimeMillis = 15 * 60 * 1000L
                 },
