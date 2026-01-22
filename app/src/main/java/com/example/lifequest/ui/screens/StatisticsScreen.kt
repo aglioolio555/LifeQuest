@@ -19,10 +19,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.viewmodel.CategoryStats
-import com.example.lifequest.viewmodel.DailyStats
 import com.example.lifequest.QuestCategory
-import com.example.lifequest.viewmodel.StatisticsData
+import com.example.lifequest.model.CategoryStats
+import com.example.lifequest.model.DailyStats
+import com.example.lifequest.model.StatisticsData
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

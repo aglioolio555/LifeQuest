@@ -24,7 +24,7 @@ class GameRepository(
 ) {
 
     // --- User / Quest Data ---
-    val userStatusEntity: Flow<UserStatus?> = userDao.getUserStatus()
+    val userStatus: Flow<UserStatus?> = userDao.getUserStatus()
     val activeQuests: Flow<List<QuestWithSubtasks>> = userDao.getActiveQuests()
     val questLogs: Flow<List<QuestLog>> = userDao.getAllQuestLogs()
     // --- Daily Quest (★修正箇所) ---

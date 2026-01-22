@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
 
         val repository = GameRepository(db.userDao(), db.breakActivityDao(), db.dailyQuestDao())
 
-        // ★追加: Helperのインスタンス化
         val usageStatsHelper = UsageStatsHelper(applicationContext)
 
         val viewModelFactory = object : ViewModelProvider.Factory {
