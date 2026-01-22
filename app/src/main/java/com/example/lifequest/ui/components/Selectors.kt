@@ -12,31 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp // ★追加
 import com.example.lifequest.QuestCategory // ★追加
-import com.example.lifequest.QuestDifficulty
 import com.example.lifequest.RepeatMode
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DifficultySelector(
-    selectedDifficulty: Int,
-    onDifficultySelected: (Int) -> Unit
-) {
-    Column {
-        Text("難易度", style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            QuestDifficulty.entries.forEach { diff ->
-                FilterChip(
-                    selected = diff.value == selectedDifficulty,
-                    onClick = { onDifficultySelected(diff.value) },
-                    label = { Text(diff.name) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = if (diff.value == 2) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

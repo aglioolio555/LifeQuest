@@ -7,15 +7,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 // 難易度と報酬定義
-enum class QuestDifficulty(val value: Int, val exp: Int, val gold: Int) {
-    EASY(0, 10, 5),
-    NORMAL(1, 30, 15),
-    HARD(2, 100, 50);
-
-    companion object {
-        fun fromInt(value: Int) = entries.find { it.value == value } ?: NORMAL
-    }
-}
+//enum class QuestDifficulty(val value: Int, val exp: Int, val gold: Int) {
+//    EASY(0, 10, 5),
+//    NORMAL(1, 30, 15),
+//    HARD(2, 100, 50);
+//
+//    companion object {
+//        fun fromInt(value: Int) = entries.find { it.value == value } ?: NORMAL
+//    }
+//}
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {
     LIFE(0, "生活", Icons.Default.Home, Color(0xFF4CAF50)),       // 緑
