@@ -14,6 +14,8 @@ interface DailyQuestDao {
     fun getProgressFlow(date: Long): Flow<DailyQuestProgress?>
     @Query("SELECT * FROM daily_quest_progress WHERE date = :date LIMIT 1")
     fun getProgress(date: Long): DailyQuestProgress?
+    @Query("SELECT * FROM daily_quest_progress ORDER BY date DESC")
+    fun getAllSync(): List<DailyQuestProgress>
     @Insert(onConflict = OnConflictStrategy.Companion.REPLACE)
     fun insert(progress: DailyQuestProgress): Long
     @Update

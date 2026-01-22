@@ -109,6 +109,10 @@ class MainRepository(
     // --- CSV Export ---
     suspend fun exportLogsToCsv(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
         val logs = questLogDao.getAllLogsSync()
-        CsvExporter(context).export(uri, logs)
+        CsvExporter(context).exportQuestLog(uri, logs)
+    }
+    suspend fun exportDailyQuestsToCsv(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
+        val allProgress = dailyQuestDao.getAllSync()
+        CsvExporter(context).exportDailyProgress(uri, allProgress)
     }
 }
