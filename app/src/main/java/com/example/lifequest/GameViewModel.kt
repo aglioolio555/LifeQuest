@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lifequest.utils.UsageStatsHelper //
 import com.example.lifequest.utils.formatDate
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,7 +25,6 @@ data class CategoryStats(
     val percentage: Float
 )
 
-
 data class DailyStats(
     val dateLabel: String,
     val dayOfWeek: String,
@@ -34,6 +34,7 @@ data class DailyStats(
 
 class GameViewModel(
     private val repository: GameRepository,
+    private val usageStatsHelper: UsageStatsHelper, //
     private val timerManager: FocusTimerManager = FocusTimerManager()
 ) : ViewModel() {
 
@@ -45,7 +46,8 @@ class GameViewModel(
         private const val BREAK_ACTIVITY_REWARD = 10
 
         private const val WAKE_UP_EXP = 30
-        private const val EARLIEST_WAKE_UP_WINDOW_MINUTES = 180L // 3時間（分）
+        private const val BEDTIME_EXP = 50 //
+        private const val EARLIEST_WAKE_UP_WINDOW_MINUTES = 180L // 3時間
     }
 
     // --- State ---
@@ -100,10 +102,13 @@ class GameViewModel(
             initialValue = DailyQuestProgress(date = getTodayStartMillis())
         )
 
+    // 権限不足通知用
+    private val _missingPermission = MutableStateFlow(false)
+    val missingPermission: StateFlow<Boolean> = _missingPermission.asStateFlow()
+
     private var currentActiveQuestId: Int? = null
 
     init {
-        // 初期データ投入と初期化
         viewModelScope.launch {
             repository.userStatus.collect {
                 if (it == null) repository.insertUserStatus(UserStatus())
@@ -134,6 +139,8 @@ class GameViewModel(
         }
 
         checkWakeUpQuest()
+        checkBedtimeQuest() //
+        _missingPermission.value = !usageStatsHelper.hasPermission() //
     }
 
     // --- Helper ---
@@ -147,6 +154,7 @@ class GameViewModel(
     }
 
     // --- Daily Quest Logic ---
+
     private fun checkWakeUpQuest() {
         viewModelScope.launch {
             val status = repository.getUserStatusSync() ?: return@launch
@@ -157,17 +165,64 @@ class GameViewModel(
                 val now = Calendar.getInstance()
                 val targetTimeMinutes = status.targetWakeUpHour * 60 + status.targetWakeUpMinute
                 val currentTimeMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-
-                // 目標の「3時間前」を定数を使って計算
                 val startTimeWindow = targetTimeMinutes - EARLIEST_WAKE_UP_WINDOW_MINUTES
 
-                // 現在時刻が「目標の3時間前 〜 目標時刻」の間であればクリア
                 if (currentTimeMinutes in startTimeWindow..targetTimeMinutes.toLong()) {
                     progress = progress.copy(isWakeUpCleared = true)
-                    repository.insertDailyProgress(progress)
+                    repository.updateDailyProgress(progress)
                     grantExp(WAKE_UP_EXP)
                 }
             }
+        }
+    }
+
+    // 就寝クエスト判定
+    fun checkBedtimeQuest() {
+        if (!usageStatsHelper.hasPermission()) {
+            _missingPermission.value = true
+            return
+        }
+        _missingPermission.value = false
+
+        viewModelScope.launch {
+            val status = repository.getUserStatusSync() ?: return@launch
+            val todayStart = getTodayStartMillis()
+            var progress = repository.getDailyProgress(todayStart) ?: DailyQuestProgress(date = todayStart)
+
+            if (progress.isBedTimeCleared) return@launch
+
+            val calendar = Calendar.getInstance()
+            val wakeUpTarget = calendar.apply {
+                timeInMillis = todayStart
+                set(Calendar.HOUR_OF_DAY, status.targetWakeUpHour)
+                set(Calendar.MINUTE, status.targetWakeUpMinute)
+            }.timeInMillis
+
+            val bedTimeTarget = calendar.apply {
+                timeInMillis = todayStart
+                add(Calendar.DAY_OF_YEAR, -1)
+                set(Calendar.HOUR_OF_DAY, status.targetBedTimeHour)
+                set(Calendar.MINUTE, status.targetBedTimeMinute)
+            }.timeInMillis
+
+            val now = System.currentTimeMillis()
+            if (now < wakeUpTarget) return@launch
+
+            val screenOnTimeMillis = usageStatsHelper.getScreenOnTime(bedTimeTarget, wakeUpTarget)
+            val limitMillis = 5 * 60 * 1000L // 5分
+
+            if (screenOnTimeMillis < limitMillis) {
+                progress = progress.copy(isBedTimeCleared = true)
+                repository.updateDailyProgress(progress)
+                grantExp(BEDTIME_EXP)
+            }
+        }
+    }
+
+    fun refreshPermissionCheck() {
+        _missingPermission.value = !usageStatsHelper.hasPermission()
+        if (usageStatsHelper.hasPermission()) {
+            checkBedtimeQuest()
         }
     }
 
@@ -304,7 +359,7 @@ class GameViewModel(
                 scope = viewModelScope,
                 onFinish = {
                     soundManager?.playTimerFinishSound()
-                    timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                    timerManager.initializeModeBasedOnQuest(quest.estimatedTime ?: 0L)
                     _currentBreakActivity.value = null
                 }
             )

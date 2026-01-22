@@ -1,5 +1,7 @@
 package com.example.lifequest.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -11,30 +13,48 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifequest.*
+import com.example.lifequest.ui.components.*
 import com.example.lifequest.ui.dialogs.QuestEditDialog
 import kotlinx.coroutines.delay
 
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
+    // 状態の監視
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
-
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
     val statistics by viewModel.statistics.collectAsState()
-
-    // ★追加: デイリークエストの進捗状態を取得
     val dailyProgress by viewModel.dailyProgress.collectAsState()
+    val missingPermission by viewModel.missingPermission.collectAsState()
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
-    DisposableEffect(Unit) { onDispose { soundManager.release() } }
 
+    // ライフサイクルイベントの監視（設定画面から戻った時の権限再チェック用）
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshPermissionCheck()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            soundManager.release()
+        }
+    }
+
+    // レベルアップ演出
     var previousLevel by remember { mutableIntStateOf(status.level) }
     LaunchedEffect(status.level) {
         if (status.level > previousLevel && previousLevel > 0) {
@@ -43,6 +63,7 @@ fun GameScreen(viewModel: GameViewModel) {
         previousLevel = status.level
     }
 
+    // クロック更新
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -51,6 +72,7 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // CSV出力ランチャー
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -63,6 +85,7 @@ fun GameScreen(viewModel: GameViewModel) {
 
     Scaffold(
         bottomBar = {
+            // FOCUSとSETTINGS表示時はボトムバーを隠す
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
                 NavigationBar {
                     Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }.forEach { screen ->
@@ -80,31 +103,62 @@ fun GameScreen(viewModel: GameViewModel) {
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize().imePadding()) {
             when (currentScreen) {
                 Screen.HOME -> {
-                    HomeScreen(
-                        status = status,
-                        urgentQuestData = quests.firstOrNull(),
-                        timerState = timerState,
-                        currentTime = currentTime,
-                        onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
-                        onOpenSettings = { currentScreen = Screen.SETTINGS },
-                        onEdit = { editingQuestData = it },
-                        onToggleTimer = { quest ->
-                            if (!timerState.isRunning) {
-                                viewModel.toggleTimer(quest, soundManager)
+                    Column {
+                        // 権限不足時の警告通知
+                        if (missingPermission) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("「就寝クエスト」機能には設定が必要です", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                        Text("使用状況へのアクセスを許可してください", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                                            context.startActivity(intent)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onErrorContainer)
+                                    ) {
+                                        Text("設定", color = MaterialTheme.colorScheme.errorContainer)
+                                    }
+                                }
                             }
-                            currentScreen = Screen.FOCUS
-                        },
-                        onComplete = { quest ->
-                            soundManager.playCoinSound()
-                            viewModel.completeQuest(quest)
-                        },
-                        onSubtaskToggle = { viewModel.toggleSubtask(it) },
-                    )
+                        }
+
+                        HomeScreen(
+                            status = status,
+                            urgentQuestData = quests.firstOrNull(),
+                            timerState = timerState,
+                            currentTime = currentTime,
+                            onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
+                            onOpenSettings = { currentScreen = Screen.SETTINGS },
+                            onEdit = { editingQuestData = it },
+                            onToggleTimer = { quest ->
+                                if (!timerState.isRunning) {
+                                    viewModel.toggleTimer(quest, soundManager)
+                                }
+                                currentScreen = Screen.FOCUS
+                            },
+                            onComplete = { quest ->
+                                soundManager.playCoinSound()
+                                viewModel.completeQuest(quest)
+                            },
+                            onSubtaskToggle = { viewModel.toggleSubtask(it) },
+                        )
+                    }
                 }
                 Screen.LIST -> {
                     QuestListContent(
                         quests = quests,
-                        dailyProgress = dailyProgress, // ★修正: 引数を追加
+                        dailyProgress = dailyProgress, //
                         currentTime = currentTime,
                         onEdit = { editingQuestData = it },
                         onToggleTimer = { quest ->
@@ -142,7 +196,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         FocusScreen(
                             questWithSubtasks = activeQuest,
                             timerState = timerState,
-                            currentBreakActivity = currentBreakActivity,
+                            currentBreakActivity = currentBreakActivity, //
                             currentTime = currentTime,
                             onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
                             onModeToggle = { viewModel.toggleTimerMode() },
@@ -166,16 +220,16 @@ fun GameScreen(viewModel: GameViewModel) {
                     }
                 }
                 Screen.STATISTICS -> {
-                    StatisticsScreen(statistics = statistics)
+                    StatisticsScreen(statistics = statistics) //
                 }
                 Screen.SETTINGS -> {
                     SettingScreen(
                         activities = breakActivities,
-                        userStatus = status, // ★修正: 引数を追加
+                        userStatus = status, //
                         onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
                         onDeleteActivity = { viewModel.deleteBreakActivity(it) },
                         onUpdateTargetTimes = { wh, wm, bh, bm ->
-                            viewModel.updateTargetTimes(wh, wm, bh, bm) // ★修正: コールバックを追加
+                            viewModel.updateTargetTimes(wh, wm, bh, bm) //
                         },
                         onBack = { currentScreen = Screen.HOME }
                     )
@@ -187,6 +241,7 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // 編集ダイアログ管理
     if (editingQuestData != null) {
         QuestEditDialog(
             questWithSubtasks = editingQuestData!!,
