@@ -4,13 +4,15 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-// RepositoryとManagerを依存性として受け取る
 class GameViewModel(
     private val repository: GameRepository,
     private val timerManager: FocusTimerManager = FocusTimerManager()
@@ -21,14 +23,13 @@ class GameViewModel(
         private const val MIN_EXP_REWARD = 10
         private const val DEFAULT_EXP_REWARD = 25
         private const val CYCLE_BONUS_EXP = 15
+        private const val BREAK_ACTIVITY_REWARD = 10 // ★追加: 回復行動の報酬
     }
 
     // --- State ---
 
-    // ★修正: RepositoryのFlowをStateFlowに変換します。
-    // これにより GameScreen で collectAsState() を初期値なしで呼べるようになります。
     val uiState: StateFlow<UserStatus> = repository.userStatus
-        .map { it ?: UserStatus() } // nullの場合は初期値を返す
+        .map { it ?: UserStatus() }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -42,22 +43,43 @@ class GameViewModel(
             initialValue = emptyList()
         )
 
-    // タイマー状態はManagerから委譲
+    // ★追加: 休憩アクティビティリスト
+    val breakActivities: StateFlow<List<BreakActivity>> = repository.allBreakActivities
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // ★追加: 現在提案中の休憩アクティビティ
+    private val _currentBreakActivity = MutableStateFlow<BreakActivity?>(null)
+    val currentBreakActivity: StateFlow<BreakActivity?> = _currentBreakActivity.asStateFlow()
+
     val timerState = timerManager.timerState
 
     private var currentActiveQuestId: Int? = null
 
     init {
-        // 初期データの監視などはRepositoryのFlowを利用するため、initでの明示的なcollectは
-        // ComposeのcollectAsStateを利用する場合は不要になる場合もあるが、
-        // ここではデータがない場合の初期作成ロジックだけ残す
         viewModelScope.launch {
             repository.userStatus.collect {
                 if (it == null) repository.insertUserStatus(UserStatus())
             }
         }
 
-        // クエスト切り替え時のタイマー自動設定の監視
+        // ★追加: 初期アクティビティデータの投入
+        viewModelScope.launch {
+            if (repository.getBreakActivityCount() == 0) {
+                val defaults = listOf(
+                    BreakActivity(title = "深呼吸", description = "目を閉じて、4秒吸って、4秒止めて、4秒で吐く。", isDefault = true),
+                    BreakActivity(title = "遠くを見る", description = "窓の外や部屋の端など、20メートル先を20秒間ぼんやり見る。", isDefault = true),
+                    BreakActivity(title = "首のストレッチ", description = "ゆっくりと首を回し、緊張をほぐす。", isDefault = true),
+                    BreakActivity(title = "水分補給", description = "コップ一杯の水を飲んでリフレッシュ。", isDefault = true),
+                    BreakActivity(title = "背伸び", description = "椅子から立ち上がり、天井に向かって大きく背伸びをする。", isDefault = true)
+                )
+                defaults.forEach { repository.insertBreakActivity(it) }
+            }
+        }
+
         viewModelScope.launch {
             repository.activeQuests.collect { quests ->
                 val topQuest = quests.firstOrNull()?.quest
@@ -73,19 +95,13 @@ class GameViewModel(
 
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
         if (timerState.value.isRunning) {
-            // 停止: タイマーを止めて、経過時間をDB保存
             timerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
         } else {
-            // 開始: 開始時間をDB保存し、タイマーを起動
             updateQuestStartTime(quest)
-
             timerManager.startTimer(
                 scope = viewModelScope,
-                onFinish = {
-                    // タイマー終了時のコールバック（ViewModelが具体的な処理を決定）
-                    handleTimerFinish(quest, soundManager)
-                }
+                onFinish = { handleTimerFinish(quest, soundManager) }
             )
         }
     }
@@ -95,31 +111,60 @@ class GameViewModel(
     }
 
     private fun handleTimerFinish(quest: Quest, soundManager: SoundManager?) {
-        // 1. 経過時間を確定
         updateQuestAccumulatedTime(quest)
-
-        // 2. 演出と報酬
         soundManager?.playTimerFinishSound()
-        grantCycleBonusExp()
+        grantExp(CYCLE_BONUS_EXP)
 
-        // 3. 休憩モードへ移行
         if (!timerState.value.isBreak) {
+            // ★追加: 休憩開始時にアクティビティを提案
+            shuffleBreakActivity()
+
             timerManager.startBreak(
                 scope = viewModelScope,
                 onFinish = {
-                    // 休憩終了時
                     soundManager?.playTimerFinishSound()
-                    // 次の集中に向けてリセット
                     timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                    _currentBreakActivity.value = null // 休憩終了でリセット
                 }
             )
         } else {
-            // 休憩が終わっていた場合のリセット
             timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+            _currentBreakActivity.value = null
         }
     }
 
-    // --- Quest / User Actions (Delegated to Repository) ---
+    // --- Break Activity Actions (★追加) ---
+
+    fun shuffleBreakActivity() {
+        viewModelScope.launch {
+            val activities = breakActivities.value
+            if (activities.isNotEmpty()) {
+                // 前回と同じものは避けるロジックを入れても良いが、一旦単純ランダム
+                _currentBreakActivity.value = activities.random()
+            }
+        }
+    }
+
+    fun completeBreakActivity(soundManager: SoundManager?) {
+        grantExp(BREAK_ACTIVITY_REWARD)
+        soundManager?.playCoinSound() // 達成音
+        _currentBreakActivity.value = null // 完了したら非表示にする
+    }
+
+    fun addBreakActivity(title: String, description: String) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            repository.insertBreakActivity(BreakActivity(title = title, description = description))
+        }
+    }
+
+    fun deleteBreakActivity(activity: BreakActivity) {
+        viewModelScope.launch {
+            repository.deleteBreakActivity(activity)
+        }
+    }
+
+    // --- Quest / User Actions ---
 
     private fun updateQuestStartTime(quest: Quest) {
         viewModelScope.launch {
@@ -137,17 +182,17 @@ class GameViewModel(
         }
     }
 
-    private fun grantCycleBonusExp() {
+    private fun grantExp(amount: Int) { // ★リファクタ: EXP付与を共通化
         viewModelScope.launch {
-            val currentStatus = repository.getUserStatusSync() // 同期取得メソッドが必要、あるいはFlowから取る
+            val currentStatus = repository.getUserStatusSync()
             currentStatus?.let {
-                repository.updateUserStatus(it.addExperience(CYCLE_BONUS_EXP))
+                repository.updateUserStatus(it.addExperience(amount))
             }
         }
     }
 
     // --- CRUD Wrappers ---
-
+    // ... (既存コードはそのまま) ...
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = calculateExpReward(estimatedTime)
@@ -160,20 +205,14 @@ class GameViewModel(
     }
 
     fun completeQuest(quest: Quest) {
-        timerManager.stopTimer() // クエスト完了時はタイマー強制停止
+        timerManager.stopTimer()
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
-
-            // ログ保存
             repository.insertQuestLog(
                 QuestLog(title = quest.title, estimatedTime = quest.estimatedTime, actualTime = finalTime, category = quest.category, completedAt = System.currentTimeMillis())
             )
+            grantExp(quest.expReward)
 
-            // 経験値付与
-            val status = repository.getUserStatusSync()
-            status?.let { repository.updateUserStatus(it.addExperience(quest.expReward)) }
-
-            // 繰り返し or 削除
             val repeat = RepeatMode.fromInt(quest.repeatMode)
             if (repeat == RepeatMode.NONE) {
                 repository.deleteQuest(quest)
@@ -191,7 +230,6 @@ class GameViewModel(
     fun deleteQuest(quest: Quest) = viewModelScope.launch { repository.deleteQuest(quest) }
     fun exportLogsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportLogsToCsv(context, uri) }
 
-    // --- Helper Logic ---
     private fun calculateExpReward(estimatedTime: Long): Int {
         return if (estimatedTime > 0) {
             val minutes = estimatedTime / (1000 * 60)

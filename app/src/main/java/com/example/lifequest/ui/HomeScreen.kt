@@ -3,6 +3,7 @@ package com.example.lifequest.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Settings // ★追加
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ fun HomeScreen(
     timerState: TimerState,
     currentTime: Long,
     onExportCsv: () -> Unit,
+    onOpenSettings: () -> Unit, // ★追加
     onEdit: (QuestWithSubtasks) -> Unit,
     onToggleTimer: (com.example.lifequest.Quest) -> Unit,
     onComplete: (com.example.lifequest.Quest) -> Unit,
@@ -33,14 +35,24 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        StatusCard(status)
+        // ★変更: ヘッダー部分に設定ボタンを配置
+        Box(modifier = Modifier.fillMaxWidth()) {
+            StatusCard(status)
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "設定", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             TextButton(onClick = onExportCsv) {
                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                 Text("CSV出力")
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Text("⚠️ CURRENT OBJECTIVE ⚠️", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
 

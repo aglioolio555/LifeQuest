@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
             .build()
 
         // リポジトリのインスタンス化
-        val repository = GameRepository(db.userDao())
+        val repository = GameRepository(db.userDao(), db.breakActivityDao())
 
         // ViewModelのファクトリ作成
         val viewModelFactory = object : ViewModelProvider.Factory {

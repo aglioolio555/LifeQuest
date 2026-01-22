@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,36 +18,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.lifequest.BreakActivity // ★追加
 import com.example.lifequest.FocusMode
 import com.example.lifequest.QuestWithSubtasks
 import com.example.lifequest.Subtask
 import com.example.lifequest.TimerState
-import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog // ★インポート
-import com.example.lifequest.ui.dialogs.QuestDetailsDialog // ★インポート
+import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog
+import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration
 
 @Composable
 fun FocusScreen(
     questWithSubtasks: QuestWithSubtasks,
     timerState: TimerState,
+    currentBreakActivity: BreakActivity?, // ★追加
     currentTime: Long,
     onToggleTimer: () -> Unit,
     onModeToggle: () -> Unit,
     onComplete: () -> Unit,
     onSubtaskToggle: (Subtask) -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    onRerollBreakActivity: () -> Unit, // ★追加
+    onCompleteBreakActivity: () -> Unit // ★追加
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
 
-    // ダイアログの状態管理
     var showDetailsDialog by remember { mutableStateOf(false) }
     var showGiveUpDialog by remember { mutableStateOf(false) }
 
-    // 戻るボタンをフックして中断確認ダイアログを表示
-    BackHandler {
-        showGiveUpDialog = true
-    }
+    BackHandler { showGiveUpDialog = true }
 
     val accumulatedTime = if (quest.lastStartTime != null) {
         quest.accumulatedTime + (currentTime - quest.lastStartTime!!)
@@ -65,7 +66,7 @@ fun FocusScreen(
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 左上: 詳細・サブタスク確認ボタン
+        // ヘッダーボタン類
         IconButton(
             onClick = { showDetailsDialog = true },
             modifier = Modifier.align(Alignment.TopStart)
@@ -73,7 +74,6 @@ fun FocusScreen(
             Icon(Icons.Default.Info, contentDescription = "詳細", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        // 右上: 閉じるボタン（中断）
         IconButton(
             onClick = { showGiveUpDialog = true },
             modifier = Modifier.align(Alignment.TopEnd)
@@ -94,10 +94,10 @@ fun FocusScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // タイマー表示エリア
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(300.dp)) {
+            // タイマー表示
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(280.dp)) {
                 val progress = if (timerState.mode == FocusMode.COUNT_UP) {
                     if (quest.estimatedTime > 0) accumulatedTime.toFloat() / quest.estimatedTime.toFloat() else 0f
                 } else {
@@ -108,24 +108,27 @@ fun FocusScreen(
                     progress = { progress },
                     modifier = Modifier.fillMaxSize(),
                     color = animatedColor,
-                    strokeWidth = 24.dp,
+                    strokeWidth = 20.dp,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     strokeCap = StrokeCap.Round
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(
-                        onClick = onModeToggle,
-                        shape = MaterialTheme.shapes.small,
-                        color = Color.Transparent,
-                        enabled = !timerState.isRunning
-                    ) {
-                        Text(
-                            text = timerState.mode.label,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(8.dp)
-                        )
+                    // モード表示 (休憩中は非表示または固定)
+                    if (!timerState.isBreak) {
+                        Surface(
+                            onClick = onModeToggle,
+                            shape = MaterialTheme.shapes.small,
+                            color = Color.Transparent,
+                            enabled = !timerState.isRunning
+                        ) {
+                            Text(
+                                text = timerState.mode.label,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
 
                     val timeText = if (timerState.mode == FocusMode.COUNT_UP) {
@@ -138,7 +141,7 @@ fun FocusScreen(
 
                     Text(
                         text = timeText,
-                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 64.sp),
+                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 60.sp),
                         fontWeight = FontWeight.Black,
                         color = animatedColor,
                         modifier = Modifier.clickable { onToggleTimer() }
@@ -146,41 +149,69 @@ fun FocusScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // 操作ボタン群
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilledIconButton(
-                    onClick = onToggleTimer,
-                    modifier = Modifier.size(96.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
+            // ★変更: 休憩中でアクティビティがある場合は提案カードを表示
+            if (timerState.isBreak && currentBreakActivity != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = if (timerState.isRunning) Icons.Default.Close else Icons.Default.PlayArrow,
-                        contentDescription = if (timerState.isRunning) "停止" else "開始",
-                        modifier = Modifier.size(48.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("回復の儀式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(currentBreakActivity.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(currentBreakActivity.description, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            OutlinedButton(onClick = onRerollBreakActivity) {
+                                Text("パス")
+                            }
+                            Button(onClick = onCompleteBreakActivity) {
+                                Text("実行する (+XP)")
+                            }
+                        }
+                    }
                 }
-
-                FilledTonalIconButton(
-                    onClick = onComplete,
-                    modifier = Modifier.size(80.dp)
+            } else {
+                // 通常の操作ボタン
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "完了",
-                        modifier = Modifier.size(40.dp)
-                    )
+                    FilledIconButton(
+                        onClick = onToggleTimer,
+                        modifier = Modifier.size(80.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
+                    ) {
+                        Icon(
+                            imageVector = if (timerState.isRunning) Icons.Default.Close else Icons.Default.PlayArrow,
+                            contentDescription = if (timerState.isRunning) "停止" else "開始",
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+
+                    FilledTonalIconButton(
+                        onClick = onComplete,
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "完了",
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
             }
         }
     }
 
-    // ★分離したコンポーザブルを呼び出し
     if (showDetailsDialog) {
         QuestDetailsDialog(
             quest = quest,
