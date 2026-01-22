@@ -29,11 +29,11 @@ import com.example.lifequest.ui.screens.QuestInputForm
 import com.example.lifequest.ui.screens.QuestListContent
 import com.example.lifequest.ui.screens.SettingScreen
 import com.example.lifequest.ui.screens.StatisticsScreen
-import com.example.lifequest.viewmodel.GameViewModel
+import com.example.lifequest.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 
 @Composable
-fun GameScreen(viewModel: GameViewModel) {
+fun GameScreen(viewModel: MainViewModel) {
     // 状態の監視
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()

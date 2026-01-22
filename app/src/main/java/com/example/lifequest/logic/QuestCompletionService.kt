@@ -1,13 +1,12 @@
 package com.example.lifequest.logic
 
-import com.example.lifequest.QuestCategory
 import com.example.lifequest.RepeatMode
 import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.data.local.entity.QuestLog
-import com.example.lifequest.data.repository.GameRepository
+import com.example.lifequest.data.repository.MainRepository
 
 class QuestCompletionService(
-    private val repository: GameRepository,
+    private val repository: MainRepository,
     private val dailyQuestManager: DailyQuestManager
 ) {
 

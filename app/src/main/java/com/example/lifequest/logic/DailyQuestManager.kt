@@ -2,12 +2,12 @@ package com.example.lifequest.logic
 
 import com.example.lifequest.data.local.entity.DailyQuestProgress
 import com.example.lifequest.data.local.entity.UserStatus
-import com.example.lifequest.data.repository.GameRepository
+import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.utils.UsageStatsHelper
 import java.util.Calendar
 
 class DailyQuestManager(
-    private val repository: GameRepository,
+    private val repository: MainRepository,
     private val usageStatsHelper: UsageStatsHelper
 ) {
     companion object {

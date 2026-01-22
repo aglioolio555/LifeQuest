@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
-class GameRepository(
+class MainRepository(
     private val userDao: UserDao,
     private val breakActivityDao: BreakActivityDao,
     private val dailyQuestDao: DailyQuestDao

@@ -16,17 +16,16 @@ import com.example.lifequest.data.local.entity.UserStatus
 import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.data.local.entity.DailyQuestProgress
 import com.example.lifequest.data.local.entity.Quest
-import com.example.lifequest.data.local.entity.QuestLog
 import com.example.lifequest.data.local.entity.Subtask
-import com.example.lifequest.data.repository.GameRepository
+import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.model.StatisticsData
 import com.example.lifequest.utils.UsageStatsHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-class GameViewModel(
-    private val repository: GameRepository,
+class MainViewModel(
+    private val repository: MainRepository,
     private val usageStatsHelper: UsageStatsHelper,
     private val timerManager: FocusTimerManager = FocusTimerManager()
 ) : ViewModel() {
