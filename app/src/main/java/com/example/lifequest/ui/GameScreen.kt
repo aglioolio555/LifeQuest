@@ -22,7 +22,7 @@ fun GameScreen(viewModel: GameViewModel) {
     val quests by viewModel.questList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
 
-    // ★追加: 休憩アクティビティの状態
+    // 休憩アクティビティの状態
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
 
@@ -59,7 +59,7 @@ fun GameScreen(viewModel: GameViewModel) {
 
     Scaffold(
         bottomBar = {
-            // ★変更: SETTINGS もボトムバーから隠す
+            // SETTINGS もボトムバーから隠す
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
                 NavigationBar {
                     // SETTINGS 以外を表示
@@ -84,7 +84,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         timerState = timerState,
                         currentTime = currentTime,
                         onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
-                        onOpenSettings = { currentScreen = Screen.SETTINGS }, // ★追加
+                        onOpenSettings = { currentScreen = Screen.SETTINGS },
                         onEdit = { editingQuestData = it },
                         onToggleTimer = { quest ->
                             if (!timerState.isRunning) {
@@ -143,7 +143,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         FocusScreen(
                             questWithSubtasks = activeQuest,
                             timerState = timerState,
-                            currentBreakActivity = currentBreakActivity, // ★追加
+                            currentBreakActivity = currentBreakActivity,
                             currentTime = currentTime,
                             onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
                             onModeToggle = { viewModel.toggleTimerMode() },
@@ -159,21 +159,22 @@ fun GameScreen(viewModel: GameViewModel) {
                                 }
                                 currentScreen = Screen.HOME
                             },
-                            onRerollBreakActivity = { viewModel.shuffleBreakActivity() }, // ★追加
-                            onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) } // ★追加
+                            onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
+                            onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) }
                         )
                     } else {
                         currentScreen = Screen.HOME
                     }
                 }
-                // ★追加: 設定画面
+                // 設定画面
                 Screen.SETTINGS -> {
                     SettingScreen(
                         activities = breakActivities,
                         onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
-                        onDeleteActivity = { viewModel.deleteBreakActivity(it) }
+                        onDeleteActivity = { viewModel.deleteBreakActivity(it) },
+                        onBack = { currentScreen = Screen.HOME } // ★追加: ホームへ戻る処理
                     )
-                    // 戻るボタンのハンドリング（簡易的）
+                    // 戻るボタンのハンドリング
                     androidx.activity.compose.BackHandler {
                         currentScreen = Screen.HOME
                     }

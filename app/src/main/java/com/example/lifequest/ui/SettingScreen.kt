@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack // ★追加
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,11 +19,23 @@ import com.example.lifequest.BreakActivity
 fun SettingScreen(
     activities: List<BreakActivity>,
     onAddActivity: (String, String) -> Unit,
-    onDeleteActivity: (BreakActivity) -> Unit
+    onDeleteActivity: (BreakActivity) -> Unit,
+    onBack: () -> Unit // ★追加: 戻る処理を受け取る
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        // ★追加: トップバーに戻るボタンを配置
+        topBar = {
+            TopAppBar(
+                title = { Text("設定") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "戻る")
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "追加")
