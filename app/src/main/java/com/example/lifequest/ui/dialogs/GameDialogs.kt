@@ -1,5 +1,6 @@
 package com.example.lifequest.ui.dialogs
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
 import com.example.lifequest.QuestWithSubtasks
@@ -29,6 +31,83 @@ fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
     )
 }
 
+// ★追加: クエスト詳細表示ダイアログ
+@Composable
+fun QuestDetailsDialog(
+    quest: Quest,
+    subtasks: List<Subtask>,
+    onDismiss: () -> Unit,
+    onSubtaskToggle: (Subtask) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = quest.title) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                if (quest.note.isNotBlank()) {
+                    Text("メモ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(quest.note, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                Text("サブタスク", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                if (subtasks.isEmpty()) {
+                    Text("サブタスクはありません", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                } else {
+                    subtasks.forEach { sub ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSubtaskToggle(sub) }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Checkbox(
+                                checked = sub.isCompleted,
+                                onCheckedChange = { onSubtaskToggle(sub) },
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = sub.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else null,
+                                color = if (sub.isCompleted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } }
+    )
+}
+
+// ★追加: 中断確認ダイアログ
+@Composable
+fun GiveUpConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("集中を中断しますか？") },
+        text = { Text("今中断すると、このセッションのフローが途切れてしまいます。\n\n本当に終了しますか？") },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("中断する")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("続ける！")
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestEditDialog(
@@ -38,6 +117,7 @@ fun QuestEditDialog(
     onAddSubtask: (String) -> Unit,
     onDeleteSubtask: (Subtask) -> Unit
 ) {
+    // ... (既存のコードはそのまま維持) ...
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
 
@@ -130,7 +210,6 @@ fun QuestEditDialog(
                         dueDate = dueDate,
                         estimatedTime = newEstimated,
                         repeatMode = repeatMode
-                        // difficulty は削除
                     ))
                 },
                 enabled = title.isNotBlank()

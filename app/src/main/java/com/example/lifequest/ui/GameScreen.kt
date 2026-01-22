@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
+    // 状態の監視
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
@@ -25,8 +26,13 @@ fun GameScreen(viewModel: GameViewModel) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
-    DisposableEffect(Unit) { onDispose { soundManager.release() } }
 
+    // クリーンアップ処理
+    DisposableEffect(Unit) {
+        onDispose { soundManager.release() }
+    }
+
+    // レベルアップ時の演出
     var previousLevel by remember { mutableIntStateOf(status.level) }
     LaunchedEffect(status.level) {
         if (status.level > previousLevel && previousLevel > 0) {
@@ -35,6 +41,7 @@ fun GameScreen(viewModel: GameViewModel) {
         previousLevel = status.level
     }
 
+    // 1秒ごとのUI更新用クロック
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -43,6 +50,7 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // CSVエクスポート用のランチャー
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -51,12 +59,15 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // クエスト編集ダイアログの状態
     var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
 
     Scaffold(
         bottomBar = {
+            // 集中画面 (FOCUS) 表示時はボトムバーを非表示にする
             if (currentScreen != Screen.FOCUS) {
                 NavigationBar {
+                    // FOCUS以外のメニューを表示
                     Screen.entries.filter { it != Screen.FOCUS }.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.label) },
@@ -69,7 +80,11 @@ fun GameScreen(viewModel: GameViewModel) {
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize().imePadding()) {
+        Box(modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize()
+            .imePadding()
+        ) {
             when (currentScreen) {
                 Screen.HOME -> {
                     HomeScreen(
@@ -79,6 +94,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         currentTime = currentTime,
                         onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
                         onEdit = { editingQuestData = it },
+                        // ホームの開始ボタンで集中画面へ遷移してタイマー開始
                         onToggleTimer = { quest ->
                             if (!timerState.isRunning) {
                                 viewModel.toggleTimer(quest, soundManager)
@@ -116,7 +132,11 @@ fun GameScreen(viewModel: GameViewModel) {
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        Text("新規クエスト受注", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(bottom = 16.dp))
+                        Text(
+                            text = "新規クエスト受注",
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
                         QuestInputForm(
                             onAddQuest = { title, note, date, repeat, category, time, subtasks ->
                                 viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
@@ -141,7 +161,13 @@ fun GameScreen(viewModel: GameViewModel) {
                                 currentScreen = Screen.HOME
                             },
                             onSubtaskToggle = { viewModel.toggleSubtask(it) },
-                            onExit = { currentScreen = Screen.HOME }
+                            onExit = {
+                                // 中断時はタイマーを停止してから戻る
+                                if (timerState.isRunning) {
+                                    viewModel.toggleTimer(activeQuest.quest, soundManager)
+                                }
+                                currentScreen = Screen.HOME
+                            }
                         )
                     } else {
                         currentScreen = Screen.HOME
@@ -151,6 +177,7 @@ fun GameScreen(viewModel: GameViewModel) {
         }
     }
 
+    // 編集ダイアログ
     if (editingQuestData != null) {
         QuestEditDialog(
             questWithSubtasks = editingQuestData!!,

@@ -5,8 +5,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,13 +15,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.lifequest.FocusMode
 import com.example.lifequest.QuestWithSubtasks
 import com.example.lifequest.Subtask
 import com.example.lifequest.TimerState
+import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog // ★インポート
+import com.example.lifequest.ui.dialogs.QuestDetailsDialog // ★インポート
 import com.example.lifequest.utils.formatDuration
 
 @Composable
@@ -34,17 +33,20 @@ fun FocusScreen(
     onToggleTimer: () -> Unit,
     onModeToggle: () -> Unit,
     onComplete: () -> Unit,
-    onSubtaskToggle: (Subtask) -> Unit, // ★追加: サブタスク操作用
+    onSubtaskToggle: (Subtask) -> Unit,
     onExit: () -> Unit
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
 
-    // 詳細ダイアログの表示状態
+    // ダイアログの状態管理
     var showDetailsDialog by remember { mutableStateOf(false) }
+    var showGiveUpDialog by remember { mutableStateOf(false) }
 
-    // 戻るボタンでホームへ
-    BackHandler(onBack = onExit)
+    // 戻るボタンをフックして中断確認ダイアログを表示
+    BackHandler {
+        showGiveUpDialog = true
+    }
 
     val accumulatedTime = if (quest.lastStartTime != null) {
         quest.accumulatedTime + (currentTime - quest.lastStartTime!!)
@@ -63,7 +65,7 @@ fun FocusScreen(
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        // ★左上: 詳細・サブタスク確認ボタン
+        // 左上: 詳細・サブタスク確認ボタン
         IconButton(
             onClick = { showDetailsDialog = true },
             modifier = Modifier.align(Alignment.TopStart)
@@ -71,9 +73,9 @@ fun FocusScreen(
             Icon(Icons.Default.Info, contentDescription = "詳細", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        // 右上: 閉じるボタン
+        // 右上: 閉じるボタン（中断）
         IconButton(
-            onClick = onExit,
+            onClick = { showGiveUpDialog = true },
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Icon(Icons.Default.Close, contentDescription = "閉じる", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -178,58 +180,22 @@ fun FocusScreen(
         }
     }
 
-    // ★詳細ポップアップダイアログ
+    // ★分離したコンポーザブルを呼び出し
     if (showDetailsDialog) {
-        AlertDialog(
-            onDismissRequest = { showDetailsDialog = false },
-            title = { Text(text = quest.title) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    // メモ表示
-                    if (quest.note.isNotBlank()) {
-                        Text("メモ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        Text(quest.note, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+        QuestDetailsDialog(
+            quest = quest,
+            subtasks = subtasks,
+            onDismiss = { showDetailsDialog = false },
+            onSubtaskToggle = onSubtaskToggle
+        )
+    }
 
-                    // サブタスクリスト
-                    Text("サブタスク", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    if (subtasks.isEmpty()) {
-                        Text("サブタスクはありません", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-                    } else {
-                        subtasks.forEach { sub ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSubtaskToggle(sub) }
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Checkbox(
-                                    checked = sub.isCompleted,
-                                    onCheckedChange = { onSubtaskToggle(sub) },
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = sub.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else null,
-                                    color = if (sub.isCompleted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDetailsDialog = false }) {
-                    Text("閉じる")
-                }
+    if (showGiveUpDialog) {
+        GiveUpConfirmDialog(
+            onDismiss = { showGiveUpDialog = false },
+            onConfirm = {
+                showGiveUpDialog = false
+                onExit()
             }
         )
     }
