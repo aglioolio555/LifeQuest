@@ -15,25 +15,24 @@ class GameRepository(
     val userStatus: Flow<UserStatus?> = userDao.getUserStatus()
     val activeQuests: Flow<List<QuestWithSubtasks>> = userDao.getActiveQuests()
 
+    // ★追加: 全クエストログの監視
+    val questLogs: Flow<List<QuestLog>> = userDao.getAllQuestLogs()
+
     // --- Break Activity Data ---
     val allBreakActivities: Flow<List<BreakActivity>> = breakActivityDao.getAll()
 
     suspend fun getBreakActivityCount(): Int = withContext(Dispatchers.IO) {
         breakActivityDao.getCount()
     }
-
-    // ★修正: DAOに合わせて戻り値 Long を明示
+    // ... (以下、既存コードと同じため省略)
     suspend fun insertBreakActivity(activity: BreakActivity): Long = withContext(Dispatchers.IO) {
         breakActivityDao.insert(activity)
     }
 
-    // ★修正: DAOに合わせて戻り値 Int を明示
     suspend fun deleteBreakActivity(activity: BreakActivity): Int = withContext(Dispatchers.IO) {
         breakActivityDao.delete(activity)
     }
 
-    // --- UserStatus ---
-    // 最新のユーザーステータスを1回だけ同期的に取得する
     suspend fun getUserStatusSync(): UserStatus? = withContext(Dispatchers.IO) {
         userDao.getUserStatusSync()
     }
@@ -46,7 +45,6 @@ class GameRepository(
         userDao.update(status)
     }
 
-    // --- Quest ---
     suspend fun insertQuest(quest: Quest, subtasks: List<String>) = withContext(Dispatchers.IO) {
         val questId = userDao.insertQuest(quest).toInt()
         subtasks.forEach { title ->
@@ -64,7 +62,6 @@ class GameRepository(
         userDao.deleteQuest(quest)
     }
 
-    // --- Subtask ---
     suspend fun insertSubtask(questId: Int, title: String) = withContext(Dispatchers.IO) {
         userDao.insertSubtask(Subtask(questId = questId, title = title))
     }
@@ -77,12 +74,10 @@ class GameRepository(
         userDao.deleteSubtask(subtask)
     }
 
-    // --- QuestLog ---
     suspend fun insertQuestLog(log: QuestLog) = withContext(Dispatchers.IO) {
         userDao.insertQuestLog(log)
     }
 
-    // --- CSV Export ---
     suspend fun exportLogsToCsv(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
         val logs = userDao.getAllLogsSync()
         CsvExporter(context).export(uri, logs)

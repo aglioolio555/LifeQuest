@@ -26,6 +26,9 @@ fun GameScreen(viewModel: GameViewModel) {
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
 
+    // ★追加: 統計データ
+    val statistics by viewModel.statistics.collectAsState()
+
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
@@ -166,15 +169,18 @@ fun GameScreen(viewModel: GameViewModel) {
                         currentScreen = Screen.HOME
                     }
                 }
+                // ★追加: 統計画面
+                Screen.STATISTICS -> {
+                    StatisticsScreen(statistics = statistics)
+                }
                 // 設定画面
                 Screen.SETTINGS -> {
                     SettingScreen(
                         activities = breakActivities,
                         onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
                         onDeleteActivity = { viewModel.deleteBreakActivity(it) },
-                        onBack = { currentScreen = Screen.HOME } // ★追加: ホームへ戻る処理
+                        onBack = { currentScreen = Screen.HOME }
                     )
-                    // 戻るボタンのハンドリング
                     androidx.activity.compose.BackHandler {
                         currentScreen = Screen.HOME
                     }

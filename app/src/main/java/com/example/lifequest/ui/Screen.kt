@@ -2,6 +2,7 @@ package com.example.lifequest.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
@@ -13,5 +14,6 @@ enum class Screen(val label: String, val icon: ImageVector) {
     LIST("クエスト", Icons.Default.List),
     ADD("受注", Icons.Default.Add),
     FOCUS("集中", Icons.Default.PlayArrow),
+    STATISTICS("記録", Icons.Default.DateRange),
     SETTINGS("設定", Icons.Default.Settings)
 }
