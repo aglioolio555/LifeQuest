@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
 import com.example.lifequest.QuestWithSubtasks
 import com.example.lifequest.Subtask
-import com.example.lifequest.utils.formatDate
+import com.example.lifequest.utils.formatDateTime // 変更: formatDateTime を使用
 import com.example.lifequest.utils.formatDuration
 
 @Composable
@@ -123,7 +123,7 @@ fun QuestItem(
                         if (quest.dueDate != null) {
                             Icon(Icons.Default.DateRange, null, modifier = Modifier.size(if (isLarge) 18.dp else 14.dp), tint = MaterialTheme.colorScheme.tertiary)
                             Text(
-                                text = " ${formatDate(quest.dueDate!!)} ",
+                                text = " ${formatDateTime(quest.dueDate!!)} ", // ★時間付きフォーマットに変更
                                 style = if (isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.tertiary
                             )
@@ -137,7 +137,7 @@ fun QuestItem(
             }
 
             if (subtasks.isNotEmpty()) {
-                Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(modifier = Modifier.padding(start = cardPadding + 8.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)) {
                     subtasks.forEach { subtask ->
                         Row(

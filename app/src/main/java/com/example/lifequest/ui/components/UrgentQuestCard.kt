@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
 import com.example.lifequest.QuestWithSubtasks
 import com.example.lifequest.Subtask
-import com.example.lifequest.utils.formatDate
+import com.example.lifequest.utils.formatDateTime // 変更: formatDateTime を使用
 import com.example.lifequest.utils.formatDuration
 
 @Composable
@@ -31,7 +31,6 @@ fun UrgentQuestCard(
     val subtasks = questWithSubtasks.subtasks
 
     val isRunning = quest.lastStartTime != null
-    // 経過時間の計算（表示用）
     val displayTime = if (isRunning) {
         quest.accumulatedTime + (currentTime - quest.lastStartTime!!)
     } else {
@@ -66,7 +65,6 @@ fun UrgentQuestCard(
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- ヘッダー: カテゴリとタイトル ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -89,7 +87,6 @@ fun UrgentQuestCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- 時間情報（テキストのみ） ---
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = formatDuration(displayTime),
@@ -110,13 +107,11 @@ fun UrgentQuestCard(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- 操作ボタン ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 再生/停止ボタン
                 FilledIconButton(
                     onClick = onToggleTimer,
                     modifier = Modifier.size(80.dp)
@@ -128,7 +123,6 @@ fun UrgentQuestCard(
                     )
                 }
 
-                // 完了ボタン
                 FilledTonalIconButton(
                     onClick = onComplete,
                     modifier = Modifier.size(64.dp),
@@ -145,10 +139,9 @@ fun UrgentQuestCard(
                 }
             }
 
-            // --- フッター: 期限とサブタスク ---
             if (quest.dueDate != null || subtasks.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
-                Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
@@ -157,7 +150,7 @@ fun UrgentQuestCard(
                     Icon(Icons.Default.DateRange, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "期限: ${formatDate(quest.dueDate!!)}",
+                        text = "期限: ${formatDateTime(quest.dueDate!!)}", // ★時間付きフォーマットに変更
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.secondary
                     )

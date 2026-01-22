@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Notifications // 追加
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,9 +18,15 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
 import com.example.lifequest.QuestWithSubtasks
 import com.example.lifequest.Subtask
+import com.example.lifequest.ui.dialogs.GameTimePickerDialog // 追加
 import com.example.lifequest.ui.components.RepeatSelector
 import com.example.lifequest.ui.components.TimeInputRow
+import com.example.lifequest.utils.combineDateAndTime // 追加
+import com.example.lifequest.utils.extractTime // 追加
 import com.example.lifequest.utils.formatDate
+import com.example.lifequest.utils.formatTime // 追加
+
+// ... (LevelUpDialog, QuestDetailsDialog, GiveUpConfirmDialog は変更なし) ...
 
 @Composable
 fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
@@ -31,7 +38,6 @@ fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
     )
 }
 
-// ★追加: クエスト詳細表示ダイアログ
 @Composable
 fun QuestDetailsDialog(
     quest: Quest,
@@ -82,7 +88,6 @@ fun QuestDetailsDialog(
     )
 }
 
-// ★追加: 中断確認ダイアログ
 @Composable
 fun GiveUpConfirmDialog(
     onDismiss: () -> Unit,
@@ -117,7 +122,6 @@ fun QuestEditDialog(
     onAddSubtask: (String) -> Unit,
     onDeleteSubtask: (Subtask) -> Unit
 ) {
-    // ... (既存のコードはそのまま維持) ...
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
 
@@ -127,7 +131,9 @@ fun QuestEditDialog(
     var repeatMode by remember { mutableIntStateOf(quest.repeatMode) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) } // ★追加
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dueDate)
+
     var inputHours by remember {
         mutableStateOf((quest.estimatedTime / (1000 * 60 * 60)).toString().let { if(it=="0") "" else it })
     }
@@ -148,13 +154,25 @@ fun QuestEditDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    AssistChip(
-                        onClick = { showDatePicker = true },
-                        label = { Text(if (dueDate != null) formatDate(dueDate!!) else "期限なし") },
-                        leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AssistChip(
+                            onClick = { showDatePicker = true },
+                            label = { Text(if (dueDate != null) formatDate(dueDate!!) else "期限なし") },
+                            leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
+                        )
+                        // ★時間選択ボタンを追加
+                        if (dueDate != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            AssistChip(
+                                onClick = { showTimePicker = true },
+                                label = { Text(formatTime(dueDate!!)) },
+                                leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) }
+                            )
+                        }
+                    }
                     RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
                 }
+
                 TimeInputRow(
                     hours = inputHours,
                     onHoursChange = { inputHours = it },
@@ -221,8 +239,32 @@ fun QuestEditDialog(
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = { TextButton(onClick = { dueDate = datePickerState.selectedDateMillis; showDatePicker = false }) { Text("OK") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    val date = datePickerState.selectedDateMillis
+                    if (date != null) {
+                        // 時間情報は保持したいが、初期設定の場合は23:59などにする
+                        val (currentH, currentM) = if (dueDate != null) extractTime(dueDate!!) else Pair(23, 59)
+                        dueDate = combineDateAndTime(date, currentH, currentM)
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") } }
         ) { DatePicker(state = datePickerState) }
+    }
+
+    // ★時間選択ダイアログ
+    if (showTimePicker && dueDate != null) {
+        val (h, m) = extractTime(dueDate!!)
+        GameTimePickerDialog(
+            initialHour = h,
+            initialMinute = m,
+            onDismissRequest = { showTimePicker = false },
+            onConfirm = { hour, minute ->
+                dueDate = combineDateAndTime(dueDate!!, hour, minute)
+                showTimePicker = false
+            }
+        )
     }
 }

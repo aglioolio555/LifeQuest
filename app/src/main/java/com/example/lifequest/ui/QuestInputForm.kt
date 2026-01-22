@@ -5,13 +5,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Notifications // 時間アイコン用
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.ui.components.CategorySelector
+import com.example.lifequest.ui.dialogs.GameTimePickerDialog // ★追加
 import com.example.lifequest.ui.components.RepeatSelector
+import com.example.lifequest.utils.combineDateAndTime
+import com.example.lifequest.utils.extractTime
+import com.example.lifequest.utils.formatDate
+import com.example.lifequest.utils.formatTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,7 +29,9 @@ fun QuestInputForm(
     var dueDate by remember { mutableStateOf<Long?>(null) }
     var repeatMode by remember { mutableIntStateOf(0) }
     var category by remember { mutableIntStateOf(0) }
+
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) } // ★追加
     val datePickerState = rememberDatePickerState()
 
     var selectedTimeMillis by remember { mutableLongStateOf(15 * 60 * 1000L) }
@@ -39,6 +47,7 @@ fun QuestInputForm(
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("メモ") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
 
+            // ... (目安時間のコードはそのまま) ...
             Spacer(modifier = Modifier.height(16.dp))
             Text("目安時間", style = MaterialTheme.typography.labelLarge)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -70,17 +79,35 @@ fun QuestInputForm(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            // ★期限設定UIの修正
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                AssistChip(
-                    onClick = { showDatePicker = true },
-                    label = { Text(if (dueDate != null) com.example.lifequest.utils.formatDate(dueDate!!) else "期限なし") },
-                    leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 日付選択ボタン
+                    AssistChip(
+                        onClick = { showDatePicker = true },
+                        label = { Text(if (dueDate != null) formatDate(dueDate!!) else "期限なし") },
+                        leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
+                    )
+
+                    // 時間選択ボタン（日付が設定されている場合のみ表示）
+                    if (dueDate != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        AssistChip(
+                            onClick = { showTimePicker = true },
+                            label = { Text(formatTime(dueDate!!)) },
+                            leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) }
+                        )
+                    }
+                }
+
                 RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
             }
+
             CategorySelector(selectedCategory = category, onCategorySelected = { category = it })
 
             Spacer(modifier = Modifier.height(8.dp))
+            // ... (サブタスクのコードはそのまま) ...
             Text("サブタスク", style = MaterialTheme.typography.labelMedium)
             subtasks.forEachIndexed { index, subtask ->
                 OutlinedTextField(
@@ -118,6 +145,7 @@ fun QuestInputForm(
 
                     onAddQuest(title, note, dueDate, repeatMode, category, finalTime, subtasks)
 
+                    // リセット
                     title = ""; note = ""; dueDate = null; repeatMode = 0; category = 0; subtasks = listOf(""); otherHours = ""; otherMinutes = ""
                     isOtherTimeSelected = false; selectedTimeMillis = 15 * 60 * 1000L
                 },
@@ -132,8 +160,33 @@ fun QuestInputForm(
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
-            confirmButton = { TextButton(onClick = { dueDate = datePickerState.selectedDateMillis; showDatePicker = false }) { Text("OK") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    // 日付選択時、時間はデフォルトで23:59にするか、現在の時間を維持するか
+                    // ここでは一旦 23:59 に設定する例 (または 00:00)
+                    val date = datePickerState.selectedDateMillis
+                    if (date != null) {
+                        dueDate = combineDateAndTime(date, 23, 59)
+                    }
+                    showDatePicker = false
+                    // 日付決定後に自動で時間選択を出すならここで showTimePicker = true
+                }) { Text("OK") }
+            },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") } }
         ) { DatePicker(state = datePickerState) }
+    }
+
+    // ★時間選択ダイアログ
+    if (showTimePicker && dueDate != null) {
+        val (h, m) = extractTime(dueDate!!)
+        GameTimePickerDialog(
+            initialHour = h,
+            initialMinute = m,
+            onDismissRequest = { showTimePicker = false },
+            onConfirm = { hour, minute ->
+                dueDate = combineDateAndTime(dueDate!!, hour, minute)
+                showTimePicker = false
+            }
+        )
     }
 }
