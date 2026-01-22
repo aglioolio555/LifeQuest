@@ -54,4 +54,21 @@ enum class RepeatMode(val value: Int) {
         }
         return calendar.timeInMillis
     }
+
+}
+enum class FocusMode(val minutes: Int, val breakMinutes: Int, val label: String) {
+    RUSH(25, 5, "Rush (25m)"),       // 25分集中 + 5分休憩
+    DEEP_DIVE(45, 10, "Deep (45m)"), // 45分集中 + 10分休憩
+    COUNT_UP(0, 0, "Free"),          // カウントアップ（無制限）
+    BREAK(0, 0, "Break");            // 休憩中
+
+    // 次のモードへ切り替え（ユーザー操作用）
+    fun next(): FocusMode {
+        return when (this) {
+            RUSH -> DEEP_DIVE
+            DEEP_DIVE -> COUNT_UP
+            COUNT_UP -> RUSH
+            BREAK -> RUSH // 休憩明けはRushへ
+        }
+    }
 }

@@ -6,37 +6,39 @@ import android.media.SoundPool
 
 class SoundManager(context: Context) {
     private val soundPool: SoundPool
-    private val coinSoundId: Int
-    private val levelUpSoundId: Int
+    private val soundLevelUp: Int
+    private val soundCoin: Int
+    private val soundTimerFinish: Int // ★追加
 
     init {
-        // SoundPoolの設定（ゲーム用設定）
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
         soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
             .setAudioAttributes(audioAttributes)
-            .setMaxStreams(2) // 同時に鳴らせる音の数
             .build()
 
-        // 音声をロード（res/rawフォルダのファイル名を指定）
-        // ※ファイル名が違う場合は、R.raw.の後ろをご自身のファイル名に変えてください
-        coinSoundId = soundPool.load(context, R.raw.se_stump, 1)
-        levelUpSoundId = soundPool.load(context, R.raw.se_levelup, 1)
-    }
-
-    fun playCoinSound() {
-        // 左音量1.0, 右音量1.0, 優先度0, ループなし(0), 再生速度1.0
-        soundPool.play(coinSoundId, 1.0f, 1.0f, 0, 0, 1.0f)
+        soundLevelUp = soundPool.load(context, R.raw.se_levelup, 1)
+        soundCoin = soundPool.load(context, R.raw.se_stump, 1)
+        soundTimerFinish = soundPool.load(context, R.raw.se_levelup, 1) // ★仮でレベルアップ音を再利用（専用音があれば差し替えてください）
     }
 
     fun playLevelUpSound() {
-        soundPool.play(levelUpSoundId, 1.0f, 1.0f, 0, 0, 1.0f)
+        soundPool.play(soundLevelUp, 1f, 1f, 0, 0, 1f)
     }
 
-    // アプリ終了時にメモリ解放するためのメソッド
+    fun playCoinSound() {
+        soundPool.play(soundCoin, 1f, 1f, 0, 0, 1f)
+    }
+
+    // ★追加
+    fun playTimerFinishSound() {
+        soundPool.play(soundTimerFinish, 1f, 1f, 1, 0, 1.2f) // 少しピッチを変えて区別
+    }
+
     fun release() {
         soundPool.release()
     }
