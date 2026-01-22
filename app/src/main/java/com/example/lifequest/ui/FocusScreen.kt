@@ -191,7 +191,7 @@ fun FocusScreen(
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
                     ) {
                         Icon(
-                            imageVector = if (timerState.isRunning) Icons.Default.Close else Icons.Default.PlayArrow,
+                            imageVector = if (timerState.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (timerState.isRunning) "停止" else "開始",
                             modifier = Modifier.size(40.dp)
                         )

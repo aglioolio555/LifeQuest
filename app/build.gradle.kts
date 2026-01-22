@@ -60,4 +60,5 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version") // コルーチンサポート
     ksp("androidx.room:room-compiler:$room_version") // アノテーション処理
+    implementation("androidx.compose.material:material-icons-extended")
 }

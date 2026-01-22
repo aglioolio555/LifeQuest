@@ -5,16 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lifequest.utils.formatDate
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-// ★追加: 統計用のデータクラス
+// 統計表示用のデータ構造
 data class StatisticsData(
     val totalQuests: Int = 0,
     val totalTime: Long = 0L,
@@ -29,11 +24,12 @@ data class CategoryStats(
     val percentage: Float
 )
 
+
 data class DailyStats(
-    val dateLabel: String, // "1/23"
-    val dayOfWeek: String, // "Mon"
+    val dateLabel: String,
+    val dayOfWeek: String,
     val totalTime: Long,
-    val categoryTimes: Map<QuestCategory, Long> // 積み上げグラフ用
+    val categoryTimes: Map<QuestCategory, Long>
 )
 
 class GameViewModel(
@@ -47,6 +43,9 @@ class GameViewModel(
         private const val DEFAULT_EXP_REWARD = 25
         private const val CYCLE_BONUS_EXP = 15
         private const val BREAK_ACTIVITY_REWARD = 10
+
+        private const val WAKE_UP_EXP = 30
+        private const val EARLIEST_WAKE_UP_WINDOW_MINUTES = 180L // 3時間（分）
     }
 
     // --- State ---
@@ -78,7 +77,7 @@ class GameViewModel(
 
     val timerState = timerManager.timerState
 
-    // ★追加: 統計データのStateFlow
+    // 統計データ
     val statistics: StateFlow<StatisticsData> = repository.questLogs
         .map { logs -> calculateStatistics(logs) }
         .stateIn(
@@ -87,9 +86,24 @@ class GameViewModel(
             initialValue = StatisticsData()
         )
 
+    // デイリークエスト進捗
+    val dailyProgress: StateFlow<DailyQuestProgress> = repository.getDailyProgressFlow(getTodayStartMillis())
+        .map { it ?: DailyQuestProgress(date = getTodayStartMillis()) }
+        .onEach { progress ->
+            if (repository.getDailyProgress(getTodayStartMillis()) == null) {
+                repository.insertDailyProgress(progress)
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = DailyQuestProgress(date = getTodayStartMillis())
+        )
+
     private var currentActiveQuestId: Int? = null
 
     init {
+        // 初期データ投入と初期化
         viewModelScope.launch {
             repository.userStatus.collect {
                 if (it == null) repository.insertUserStatus(UserStatus())
@@ -118,75 +132,149 @@ class GameViewModel(
                 }
             }
         }
+
+        checkWakeUpQuest()
     }
 
-    // ★追加: 統計計算ロジック
-    private fun calculateStatistics(logs: List<QuestLog>): StatisticsData {
-        if (logs.isEmpty()) return StatisticsData()
-
-        // 1. 全体累計
-        val totalQuests = logs.size
-        val totalTime = logs.sumOf { it.actualTime }
-
-        // 2. カテゴリー別集計
-        val categoryMap = logs.groupBy { it.category }
-        val breakdown = QuestCategory.entries.map { category ->
-            val categoryLogs = categoryMap[category.id] ?: emptyList()
-            val count = categoryLogs.size
-            val duration = categoryLogs.sumOf { it.actualTime }
-            val percentage = if (totalTime > 0) (duration.toFloat() / totalTime.toFloat()) else 0f
-            CategoryStats(category, count, duration, percentage)
-        }.sortedByDescending { it.duration }
-
-        // 3. 週次グラフデータ (直近7日間)
+    // --- Helper ---
+    private fun getTodayStartMillis(): Long {
         val calendar = Calendar.getInstance()
-        // 時間を00:00:00にリセットして今日の日付を取得
         calendar.set(Calendar.HOUR_OF_DAY, 0)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
 
-        // 6日前まで遡る
+    // --- Daily Quest Logic ---
+    private fun checkWakeUpQuest() {
+        viewModelScope.launch {
+            val status = repository.getUserStatusSync() ?: return@launch
+            val todayStart = getTodayStartMillis()
+            var progress = repository.getDailyProgress(todayStart) ?: DailyQuestProgress(date = todayStart)
+
+            if (!progress.isWakeUpCleared) {
+                val now = Calendar.getInstance()
+                val targetTimeMinutes = status.targetWakeUpHour * 60 + status.targetWakeUpMinute
+                val currentTimeMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+
+                // 目標の「3時間前」を定数を使って計算
+                val startTimeWindow = targetTimeMinutes - EARLIEST_WAKE_UP_WINDOW_MINUTES
+
+                // 現在時刻が「目標の3時間前 〜 目標時刻」の間であればクリア
+                if (currentTimeMinutes in startTimeWindow..targetTimeMinutes.toLong()) {
+                    progress = progress.copy(isWakeUpCleared = true)
+                    repository.insertDailyProgress(progress)
+                    grantExp(WAKE_UP_EXP)
+                }
+            }
+        }
+    }
+
+    private fun updateDailyFocusTime(addedTime: Long) {
+        viewModelScope.launch {
+            val todayStart = getTodayStartMillis()
+            var progress = repository.getDailyProgress(todayStart) ?: DailyQuestProgress(date = todayStart)
+
+            val newTotalTime = progress.totalFocusTime + addedTime
+            var newTier = progress.focusRewardTier
+            var expToAdd = 0
+
+            val hours = newTotalTime / (1000 * 60 * 60)
+            if (newTier < 1 && hours >= 1) { newTier = 1; expToAdd += 50 }
+            if (newTier < 2 && hours >= 3) { newTier = 2; expToAdd += 100 }
+            if (newTier < 3 && hours >= 5) { newTier = 3; expToAdd += 200 }
+            if (newTier < 4 && hours >= 10) { newTier = 4; expToAdd += 500 }
+
+            if (newTier != progress.focusRewardTier || addedTime > 0) {
+                repository.updateDailyProgress(progress.copy(
+                    totalFocusTime = newTotalTime,
+                    focusRewardTier = newTier
+                ))
+                if (expToAdd > 0) grantExp(expToAdd)
+            }
+        }
+    }
+
+    private fun checkCategoryDailyComplete(category: Int) {
+        viewModelScope.launch {
+            val todayStart = getTodayStartMillis()
+            var progress = repository.getDailyProgress(todayStart) ?: DailyQuestProgress(date = todayStart)
+
+            if (!progress.hasCategoryCleared(category)) {
+                progress = progress.addClearedCategory(category)
+                repository.updateDailyProgress(progress)
+                grantExp(20)
+            }
+        }
+    }
+
+    fun updateTargetTimes(wakeUpHour: Int, wakeUpMinute: Int, bedTimeHour: Int, bedTimeMinute: Int) {
+        viewModelScope.launch {
+            val currentStatus = repository.getUserStatusSync() ?: return@launch
+            repository.updateUserStatus(currentStatus.copy(
+                targetWakeUpHour = wakeUpHour,
+                targetWakeUpMinute = wakeUpMinute,
+                targetBedTimeHour = bedTimeHour,
+                targetBedTimeMinute = bedTimeMinute
+            ))
+        }
+    }
+
+    // --- Statistics Logic ---
+
+    private fun calculateStatistics(logs: List<QuestLog>): StatisticsData {
+        if (logs.isEmpty()) return StatisticsData()
+
+        val totalQuests = logs.size
+        val totalTime = logs.sumOf { it.actualTime }
+
+        val categoryMap = logs.groupBy { it.category }
+        val breakdown = QuestCategory.entries.map { category ->
+            val categoryLogs = categoryMap[category.id] ?: emptyList()
+            val duration = categoryLogs.sumOf { it.actualTime }
+            CategoryStats(
+                category,
+                categoryLogs.size,
+                duration,
+                if (totalTime > 0) duration.toFloat() / totalTime.toFloat() else 0f
+            )
+        }.sortedByDescending { it.duration }
+
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
         calendar.add(Calendar.DAY_OF_YEAR, -6)
 
         val weeklyData = mutableListOf<DailyStats>()
-
         for (i in 0..6) {
-            val startOfDay = calendar.timeInMillis
+            val start = calendar.timeInMillis
             calendar.add(Calendar.DAY_OF_YEAR, 1)
-            val endOfDay = calendar.timeInMillis
+            val end = calendar.timeInMillis
 
-            // その日のログを抽出
-            val dailyLogs = logs.filter { it.completedAt in startOfDay until endOfDay }
+            val dailyLogs = logs.filter { it.completedAt in start until end }
             val dailyTotal = dailyLogs.sumOf { it.actualTime }
-
-            // カテゴリごとの時間
-            val dailyCategoryMap = dailyLogs.groupBy { it.category }
+            val dailyCatMap = dailyLogs.groupBy { it.category }
                 .mapKeys { QuestCategory.fromInt(it.key) }
-                .mapValues { entry -> entry.value.sumOf { it.actualTime } }
+                .mapValues { it.value.sumOf { log -> log.actualTime } }
 
-            // 日付ラベル生成
-            val dayCalendar = Calendar.getInstance().apply { timeInMillis = startOfDay }
-            val dateLabel = "${dayCalendar.get(Calendar.MONTH) + 1}/${dayCalendar.get(Calendar.DAY_OF_MONTH)}"
-            val dayOfWeek = when(dayCalendar.get(Calendar.DAY_OF_WEEK)) {
-                Calendar.SUNDAY -> "Sun"
-                Calendar.MONDAY -> "Mon"
-                Calendar.TUESDAY -> "Tue"
-                Calendar.WEDNESDAY -> "Wed"
-                Calendar.THURSDAY -> "Thu"
-                Calendar.FRIDAY -> "Fri"
-                Calendar.SATURDAY -> "Sat"
-                else -> ""
+            val dCal = Calendar.getInstance().apply { timeInMillis = start }
+            val label = "${dCal.get(Calendar.MONTH) + 1}/${dCal.get(Calendar.DAY_OF_MONTH)}"
+            val dow = when(dCal.get(Calendar.DAY_OF_WEEK)) {
+                Calendar.SUNDAY -> "Sun"; Calendar.MONDAY -> "Mon"; Calendar.TUESDAY -> "Tue"
+                Calendar.WEDNESDAY -> "Wed"; Calendar.THURSDAY -> "Thu"; Calendar.FRIDAY -> "Fri"
+                Calendar.SATURDAY -> "Sat"; else -> ""
             }
-
-            weeklyData.add(DailyStats(dateLabel, dayOfWeek, dailyTotal, dailyCategoryMap))
+            weeklyData.add(DailyStats(label, dow, dailyTotal, dailyCatMap))
         }
 
         return StatisticsData(totalQuests, totalTime, breakdown, weeklyData)
     }
 
-    // --- Timer Actions ---
-    // ... (既存コードはそのまま) ...
+    // --- Actions ---
+
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
         if (timerState.value.isRunning) {
             timerManager.stopTimer()
@@ -200,14 +288,15 @@ class GameViewModel(
         }
     }
 
-    fun toggleTimerMode() {
-        timerManager.toggleMode()
-    }
+    fun toggleTimerMode() = timerManager.toggleMode()
 
     private fun handleTimerFinish(quest: Quest, soundManager: SoundManager?) {
         updateQuestAccumulatedTime(quest)
         soundManager?.playTimerFinishSound()
         grantExp(CYCLE_BONUS_EXP)
+
+        val sessionTime = if(timerState.value.mode == FocusMode.COUNT_UP) 0L else timerState.value.initialSeconds * 1000
+        if (sessionTime > 0) updateDailyFocusTime(sessionTime)
 
         if (!timerState.value.isBreak) {
             shuffleBreakActivity()
@@ -225,14 +314,9 @@ class GameViewModel(
         }
     }
 
-    // --- Break Activity Actions ---
     fun shuffleBreakActivity() {
-        viewModelScope.launch {
-            val activities = breakActivities.value
-            if (activities.isNotEmpty()) {
-                _currentBreakActivity.value = activities.random()
-            }
-        }
+        val activities = breakActivities.value
+        if (activities.isNotEmpty()) _currentBreakActivity.value = activities.random()
     }
 
     fun completeBreakActivity(soundManager: SoundManager?) {
@@ -243,52 +327,32 @@ class GameViewModel(
 
     fun addBreakActivity(title: String, description: String) {
         if (title.isBlank()) return
-        viewModelScope.launch {
-            repository.insertBreakActivity(BreakActivity(title = title, description = description))
-        }
+        viewModelScope.launch { repository.insertBreakActivity(BreakActivity(title = title, description = description)) }
     }
 
-    fun deleteBreakActivity(activity: BreakActivity) {
-        viewModelScope.launch {
-            repository.deleteBreakActivity(activity)
-        }
-    }
+    fun deleteBreakActivity(activity: BreakActivity) = viewModelScope.launch { repository.deleteBreakActivity(activity) }
 
-    // --- Quest / User Actions ---
-    private fun updateQuestStartTime(quest: Quest) {
-        viewModelScope.launch {
-            repository.updateQuest(quest.copy(lastStartTime = System.currentTimeMillis()))
-        }
+    private fun updateQuestStartTime(quest: Quest) = viewModelScope.launch {
+        repository.updateQuest(quest.copy(lastStartTime = System.currentTimeMillis()))
     }
 
     private fun updateQuestAccumulatedTime(quest: Quest) {
         val now = System.currentTimeMillis()
         if (quest.lastStartTime != null) {
             val diff = now - quest.lastStartTime
-            viewModelScope.launch {
-                repository.updateQuest(quest.copy(accumulatedTime = quest.accumulatedTime + diff, lastStartTime = null))
-            }
+            viewModelScope.launch { repository.updateQuest(quest.copy(accumulatedTime = quest.accumulatedTime + diff, lastStartTime = null)) }
         }
     }
 
-    private fun grantExp(amount: Int) {
-        viewModelScope.launch {
-            val currentStatus = repository.getUserStatusSync()
-            currentStatus?.let {
-                repository.updateUserStatus(it.addExperience(amount))
-            }
-        }
+    private fun grantExp(amount: Int) = viewModelScope.launch {
+        repository.getUserStatusSync()?.let { repository.updateUserStatus(it.addExperience(amount)) }
     }
 
-    // --- CRUD Wrappers ---
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = calculateExpReward(estimatedTime)
         viewModelScope.launch {
-            repository.insertQuest(
-                Quest(title = title, note = note, dueDate = dueDate, estimatedTime = estimatedTime, expReward = exp, repeatMode = repeatMode, category = category),
-                subtasks
-            )
+            repository.insertQuest(Quest(title = title, note = note, dueDate = dueDate, estimatedTime = estimatedTime, expReward = exp, repeatMode = repeatMode, category = category), subtasks)
         }
     }
 
@@ -296,10 +360,9 @@ class GameViewModel(
         timerManager.stopTimer()
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
-            repository.insertQuestLog(
-                QuestLog(title = quest.title, estimatedTime = quest.estimatedTime, actualTime = finalTime, category = quest.category, completedAt = System.currentTimeMillis())
-            )
+            repository.insertQuestLog(QuestLog(title = quest.title, estimatedTime = quest.estimatedTime, actualTime = finalTime, category = quest.category, completedAt = System.currentTimeMillis()))
             grantExp(quest.expReward)
+            checkCategoryDailyComplete(quest.category)
 
             val repeat = RepeatMode.fromInt(quest.repeatMode)
             if (repeat == RepeatMode.NONE) {
@@ -327,9 +390,7 @@ class GameViewModel(
 
     private fun calculateFinalActualTime(quest: Quest): Long {
         var time = quest.accumulatedTime
-        if (quest.lastStartTime != null) {
-            time += (System.currentTimeMillis() - quest.lastStartTime)
-        }
+        if (quest.lastStartTime != null) time += (System.currentTimeMillis() - quest.lastStartTime)
         return time
     }
 }

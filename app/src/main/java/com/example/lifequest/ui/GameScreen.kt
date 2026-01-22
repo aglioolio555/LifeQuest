@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.*
 import com.example.lifequest.ui.dialogs.QuestEditDialog
@@ -22,12 +23,12 @@ fun GameScreen(viewModel: GameViewModel) {
     val quests by viewModel.questList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
 
-    // 休憩アクティビティの状態
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
-
-    // ★追加: 統計データ
     val statistics by viewModel.statistics.collectAsState()
+
+    // ★追加: デイリークエストの進捗状態を取得
+    val dailyProgress by viewModel.dailyProgress.collectAsState()
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -62,10 +63,8 @@ fun GameScreen(viewModel: GameViewModel) {
 
     Scaffold(
         bottomBar = {
-            // SETTINGS もボトムバーから隠す
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
                 NavigationBar {
-                    // SETTINGS 以外を表示
                     Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.label) },
@@ -99,12 +98,13 @@ fun GameScreen(viewModel: GameViewModel) {
                             soundManager.playCoinSound()
                             viewModel.completeQuest(quest)
                         },
-                        onSubtaskToggle = { viewModel.toggleSubtask(it) }
+                        onSubtaskToggle = { viewModel.toggleSubtask(it) },
                     )
                 }
                 Screen.LIST -> {
                     QuestListContent(
                         quests = quests,
+                        dailyProgress = dailyProgress, // ★修正: 引数を追加
                         currentTime = currentTime,
                         onEdit = { editingQuestData = it },
                         onToggleTimer = { quest ->
@@ -126,11 +126,7 @@ fun GameScreen(viewModel: GameViewModel) {
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        Text(
-                            text = "新規クエスト受注",
-                            style = MaterialTheme.typography.headlineSmall,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
+                        Text("新規クエスト受注", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(bottom = 16.dp))
                         QuestInputForm(
                             onAddQuest = { title, note, date, repeat, category, time, subtasks ->
                                 viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
@@ -169,16 +165,18 @@ fun GameScreen(viewModel: GameViewModel) {
                         currentScreen = Screen.HOME
                     }
                 }
-                // ★追加: 統計画面
                 Screen.STATISTICS -> {
                     StatisticsScreen(statistics = statistics)
                 }
-                // 設定画面
                 Screen.SETTINGS -> {
                     SettingScreen(
                         activities = breakActivities,
+                        userStatus = status, // ★修正: 引数を追加
                         onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
                         onDeleteActivity = { viewModel.deleteBreakActivity(it) },
+                        onUpdateTargetTimes = { wh, wm, bh, bm ->
+                            viewModel.updateTargetTimes(wh, wm, bh, bm) // ★修正: コールバックを追加
+                        },
                         onBack = { currentScreen = Screen.HOME }
                     )
                     androidx.activity.compose.BackHandler {

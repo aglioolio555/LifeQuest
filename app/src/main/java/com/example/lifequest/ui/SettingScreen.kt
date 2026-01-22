@@ -1,11 +1,12 @@
 package com.example.lifequest.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack // ★追加
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,19 +14,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.BreakActivity
+import com.example.lifequest.UserStatus
+import com.example.lifequest.ui.dialogs.GameTimePickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingScreen(
     activities: List<BreakActivity>,
+    userStatus: UserStatus,
     onAddActivity: (String, String) -> Unit,
     onDeleteActivity: (BreakActivity) -> Unit,
-    onBack: () -> Unit // ★追加: 戻る処理を受け取る
+    onUpdateTargetTimes: (Int, Int, Int, Int) -> Unit,
+    onBack: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
+    // 時刻設定用ダイアログの表示管理
+    var showWakeUpPicker by remember { mutableStateOf(false) }
+    var showBedTimePicker by remember { mutableStateOf(false) }
+
     Scaffold(
-        // ★追加: トップバーに戻るボタンを配置
         topBar = {
             TopAppBar(
                 title = { Text("設定") },
@@ -43,10 +51,54 @@ fun SettingScreen(
         }
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
+
+            // --- デイリークエスト設定セクション ---
+            Text("デイリークエスト設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // 起床時刻設定
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showWakeUpPicker = true }
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("目標起床時刻", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "%02d:%02d".format(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute),
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                    HorizontalDivider()
+                    // 就寝時刻設定
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showBedTimePicker = true }
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("目標就寝時刻", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "%02d:%02d".format(userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute),
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- 回復アクティビティ設定セクション ---
             Text(
                 "回復アクティビティ設定",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
             )
             Text(
                 "休憩時間に提案される行動リストです。",
@@ -79,6 +131,33 @@ fun SettingScreen(
         }
     }
 
+    // 起床時刻選択ダイアログ
+    if (showWakeUpPicker) {
+        GameTimePickerDialog(
+            initialHour = userStatus.targetWakeUpHour,
+            initialMinute = userStatus.targetWakeUpMinute,
+            onDismissRequest = { showWakeUpPicker = false },
+            onConfirm = { h, m ->
+                onUpdateTargetTimes(h, m, userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute)
+                showWakeUpPicker = false
+            }
+        )
+    }
+
+    // 就寝時刻選択ダイアログ
+    if (showBedTimePicker) {
+        GameTimePickerDialog(
+            initialHour = userStatus.targetBedTimeHour,
+            initialMinute = userStatus.targetBedTimeMinute,
+            onDismissRequest = { showBedTimePicker = false },
+            onConfirm = { h, m ->
+                onUpdateTargetTimes(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute, h, m)
+                showBedTimePicker = false
+            }
+        )
+    }
+
+    // 新規アクティビティ追加ダイアログ
     if (showAddDialog) {
         var title by remember { mutableStateOf("") }
         var description by remember { mutableStateOf("") }
