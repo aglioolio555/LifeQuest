@@ -1,4 +1,4 @@
-package com.example.lifequest
+package com.example.lifequest.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
@@ -6,6 +6,11 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import com.example.lifequest.data.local.entity.Quest
+import com.example.lifequest.data.local.entity.QuestLog
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.data.local.entity.UserStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao

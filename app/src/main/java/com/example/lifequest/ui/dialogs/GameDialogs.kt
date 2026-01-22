@@ -15,10 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.Quest
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
-import com.example.lifequest.ui.dialogs.GameTimePickerDialog // 追加
+import com.example.lifequest.data.local.entity.Quest
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
 import com.example.lifequest.ui.components.RepeatSelector
 import com.example.lifequest.ui.components.TimeInputRow
 import com.example.lifequest.utils.combineDateAndTime // 追加

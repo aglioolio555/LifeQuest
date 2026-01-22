@@ -1,11 +1,23 @@
-package com.example.lifequest
+package com.example.lifequest.viewmodel
 
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lifequest.FocusMode
+import com.example.lifequest.logic.FocusTimerManager
+import com.example.lifequest.QuestCategory
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.RepeatMode
+import com.example.lifequest.logic.SoundManager
+import com.example.lifequest.data.local.entity.UserStatus
+import com.example.lifequest.data.local.entity.BreakActivity
+import com.example.lifequest.data.local.entity.DailyQuestProgress
+import com.example.lifequest.data.local.entity.Quest
+import com.example.lifequest.data.local.entity.QuestLog
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.data.repository.GameRepository
 import com.example.lifequest.utils.UsageStatsHelper //
-import com.example.lifequest.utils.formatDate
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -52,7 +64,7 @@ class GameViewModel(
 
     // --- State ---
 
-    val uiState: StateFlow<UserStatus> = repository.userStatus
+    val uiState: StateFlow<UserStatus> = repository.userStatusEntity
         .map { it ?: UserStatus() }
         .stateIn(
             scope = viewModelScope,
@@ -110,7 +122,7 @@ class GameViewModel(
 
     init {
         viewModelScope.launch {
-            repository.userStatus.collect {
+            repository.userStatusEntity.collect {
                 if (it == null) repository.insertUserStatus(UserStatus())
             }
         }
@@ -118,11 +130,31 @@ class GameViewModel(
         viewModelScope.launch {
             if (repository.getBreakActivityCount() == 0) {
                 val defaults = listOf(
-                    BreakActivity(title = "深呼吸", description = "目を閉じて、4秒吸って、4秒止めて、4秒で吐く。", isDefault = true),
-                    BreakActivity(title = "遠くを見る", description = "窓の外や部屋の端など、20メートル先を20秒間ぼんやり見る。", isDefault = true),
-                    BreakActivity(title = "首のストレッチ", description = "ゆっくりと首を回し、緊張をほぐす。", isDefault = true),
-                    BreakActivity(title = "水分補給", description = "コップ一杯の水を飲んでリフレッシュ。", isDefault = true),
-                    BreakActivity(title = "背伸び", description = "椅子から立ち上がり、天井に向かって大きく背伸びをする。", isDefault = true)
+                    BreakActivity(
+                        title = "深呼吸",
+                        description = "目を閉じて、4秒吸って、4秒止めて、4秒で吐く。",
+                        isDefault = true
+                    ),
+                    BreakActivity(
+                        title = "遠くを見る",
+                        description = "窓の外や部屋の端など、20メートル先を20秒間ぼんやり見る。",
+                        isDefault = true
+                    ),
+                    BreakActivity(
+                        title = "首のストレッチ",
+                        description = "ゆっくりと首を回し、緊張をほぐす。",
+                        isDefault = true
+                    ),
+                    BreakActivity(
+                        title = "水分補給",
+                        description = "コップ一杯の水を飲んでリフレッシュ。",
+                        isDefault = true
+                    ),
+                    BreakActivity(
+                        title = "背伸び",
+                        description = "椅子から立ち上がり、天井に向かって大きく背伸びをする。",
+                        isDefault = true
+                    )
                 )
                 defaults.forEach { repository.insertBreakActivity(it) }
             }
@@ -312,7 +344,7 @@ class GameViewModel(
             val dailyLogs = logs.filter { it.completedAt in start until end }
             val dailyTotal = dailyLogs.sumOf { it.actualTime }
             val dailyCatMap = dailyLogs.groupBy { it.category }
-                .mapKeys { QuestCategory.fromInt(it.key) }
+                .mapKeys { QuestCategory.Companion.fromInt(it.key) }
                 .mapValues { it.value.sumOf { log -> log.actualTime } }
 
             val dCal = Calendar.getInstance().apply { timeInMillis = start }
@@ -382,7 +414,12 @@ class GameViewModel(
 
     fun addBreakActivity(title: String, description: String) {
         if (title.isBlank()) return
-        viewModelScope.launch { repository.insertBreakActivity(BreakActivity(title = title, description = description)) }
+        viewModelScope.launch { repository.insertBreakActivity(
+            BreakActivity(
+                title = title,
+                description = description
+            )
+        ) }
     }
 
     fun deleteBreakActivity(activity: BreakActivity) = viewModelScope.launch { repository.deleteBreakActivity(activity) }
@@ -407,7 +444,16 @@ class GameViewModel(
         if (title.isBlank()) return
         val exp = calculateExpReward(estimatedTime)
         viewModelScope.launch {
-            repository.insertQuest(Quest(title = title, note = note, dueDate = dueDate, estimatedTime = estimatedTime, expReward = exp, repeatMode = repeatMode, category = category), subtasks)
+            repository.insertQuest(
+                Quest(
+                    title = title,
+                    note = note,
+                    dueDate = dueDate,
+                    estimatedTime = estimatedTime,
+                    expReward = exp,
+                    repeatMode = repeatMode,
+                    category = category
+                ), subtasks)
         }
     }
 
@@ -415,11 +461,19 @@ class GameViewModel(
         timerManager.stopTimer()
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
-            repository.insertQuestLog(QuestLog(title = quest.title, estimatedTime = quest.estimatedTime, actualTime = finalTime, category = quest.category, completedAt = System.currentTimeMillis()))
+            repository.insertQuestLog(
+                QuestLog(
+                    title = quest.title,
+                    estimatedTime = quest.estimatedTime,
+                    actualTime = finalTime,
+                    category = quest.category,
+                    completedAt = System.currentTimeMillis()
+                )
+            )
             grantExp(quest.expReward)
             checkCategoryDailyComplete(quest.category)
 
-            val repeat = RepeatMode.fromInt(quest.repeatMode)
+            val repeat = RepeatMode.Companion.fromInt(quest.repeatMode)
             if (repeat == RepeatMode.NONE) {
                 repository.deleteQuest(quest)
             } else {

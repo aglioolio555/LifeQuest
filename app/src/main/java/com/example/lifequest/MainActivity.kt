@@ -6,9 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
+import com.example.lifequest.data.local.AppDatabase
+import com.example.lifequest.data.repository.GameRepository
 import com.example.lifequest.ui.GameScreen
 import com.example.lifequest.ui.theme.LifeQuestTheme
 import com.example.lifequest.utils.UsageStatsHelper
+import com.example.lifequest.viewmodel.GameViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

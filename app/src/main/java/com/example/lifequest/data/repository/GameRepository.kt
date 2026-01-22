@@ -1,7 +1,18 @@
-package com.example.lifequest
+package com.example.lifequest.data.repository
 
 import android.content.Context
 import android.net.Uri
+import com.example.lifequest.data.local.entity.BreakActivity
+import com.example.lifequest.data.local.dao.BreakActivityDao
+import com.example.lifequest.utils.CsvExporter
+import com.example.lifequest.data.local.dao.DailyQuestDao
+import com.example.lifequest.data.local.entity.DailyQuestProgress
+import com.example.lifequest.data.local.entity.Quest
+import com.example.lifequest.data.local.entity.QuestLog
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.data.local.dao.UserDao
+import com.example.lifequest.data.local.entity.UserStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -13,7 +24,7 @@ class GameRepository(
 ) {
 
     // --- User / Quest Data ---
-    val userStatus: Flow<UserStatus?> = userDao.getUserStatus()
+    val userStatusEntity: Flow<UserStatus?> = userDao.getUserStatus()
     val activeQuests: Flow<List<QuestWithSubtasks>> = userDao.getActiveQuests()
     val questLogs: Flow<List<QuestLog>> = userDao.getAllQuestLogs()
     // --- Daily Quest (★修正箇所) ---
@@ -24,14 +35,16 @@ class GameRepository(
     }
 
     // ★修正: 戻り値 (: Long) を明示
-    suspend fun insertDailyProgress(progress: DailyQuestProgress): Long = withContext(Dispatchers.IO) {
-        dailyQuestDao.insert(progress)
-    }
+    suspend fun insertDailyProgress(progress: DailyQuestProgress): Long =
+        withContext(Dispatchers.IO) {
+            dailyQuestDao.insert(progress)
+        }
 
     // ★修正: 戻り値 (: Int) を明示
-    suspend fun updateDailyProgress(progress: DailyQuestProgress): Int = withContext(Dispatchers.IO) {
-        dailyQuestDao.update(progress)
-    }
+    suspend fun updateDailyProgress(progress: DailyQuestProgress): Int =
+        withContext(Dispatchers.IO) {
+            dailyQuestDao.update(progress)
+        }
 
     // --- Break Activity Data ---
     val allBreakActivities: Flow<List<BreakActivity>> = breakActivityDao.getAll()

@@ -1,7 +1,9 @@
-package com.example.lifequest
+package com.example.lifequest.model
 
 import androidx.room.Embedded
 import androidx.room.Relation
+import com.example.lifequest.data.local.entity.Quest
+import com.example.lifequest.data.local.entity.Subtask
 
 // クエスト本体と、それに紐づくサブタスクリストをまとめて扱うクラス
 data class QuestWithSubtasks(

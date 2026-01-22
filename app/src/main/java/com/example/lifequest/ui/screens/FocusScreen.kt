@@ -1,11 +1,10 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,11 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.lifequest.BreakActivity // ★追加
+import com.example.lifequest.data.local.entity.BreakActivity // ★追加
 import com.example.lifequest.FocusMode
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
-import com.example.lifequest.TimerState
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.logic.TimerState
 import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog
 import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration

@@ -1,4 +1,4 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -11,10 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
-import com.example.lifequest.TimerState
-import com.example.lifequest.UserStatus
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.logic.TimerState
+import com.example.lifequest.data.local.entity.UserStatus
+import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.ui.components.StatusCard
 import com.example.lifequest.ui.components.UrgentQuestCard
 
@@ -27,8 +28,8 @@ fun HomeScreen(
     onExportCsv: () -> Unit,
     onOpenSettings: () -> Unit, // ★追加
     onEdit: (QuestWithSubtasks) -> Unit,
-    onToggleTimer: (com.example.lifequest.Quest) -> Unit,
-    onComplete: (com.example.lifequest.Quest) -> Unit,
+    onToggleTimer: (Quest) -> Unit,
+    onComplete: (Quest) -> Unit,
     onSubtaskToggle: (Subtask) -> Unit
 ) {
     Column(

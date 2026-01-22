@@ -1,12 +1,12 @@
-package com.example.lifequest
+package com.example.lifequest.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
-import androidx.room.Transaction
-import androidx.room.Update
+import com.example.lifequest.data.local.entity.BreakActivity
 import kotlinx.coroutines.flow.Flow
+
 @Dao
 interface BreakActivityDao {
     @Query("SELECT * FROM break_activities ORDER BY id DESC")

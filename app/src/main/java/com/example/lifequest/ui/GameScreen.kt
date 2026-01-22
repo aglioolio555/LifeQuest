@@ -2,6 +2,7 @@ package com.example.lifequest.ui
 
 import android.content.Intent
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -18,9 +20,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.example.lifequest.*
-import com.example.lifequest.ui.components.*
+import com.example.lifequest.logic.SoundManager
+import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.ui.dialogs.QuestEditDialog
+import com.example.lifequest.ui.screens.FocusScreen
+import com.example.lifequest.ui.screens.HomeScreen
+import com.example.lifequest.ui.screens.QuestInputForm
+import com.example.lifequest.ui.screens.QuestListContent
+import com.example.lifequest.ui.screens.SettingScreen
+import com.example.lifequest.ui.screens.StatisticsScreen
+import com.example.lifequest.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
 
 @Composable
@@ -112,7 +121,7 @@ fun GameScreen(viewModel: GameViewModel) {
                             ) {
                                 Row(
                                     modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.onErrorContainer)
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -183,7 +192,15 @@ fun GameScreen(viewModel: GameViewModel) {
                         Text("新規クエスト受注", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(bottom = 16.dp))
                         QuestInputForm(
                             onAddQuest = { title, note, date, repeat, category, time, subtasks ->
-                                viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
+                                viewModel.addQuest(
+                                    title,
+                                    note,
+                                    date,
+                                    repeat,
+                                    category,
+                                    time,
+                                    subtasks
+                                )
                                 currentScreen = Screen.LIST
                             }
                         )
@@ -198,7 +215,12 @@ fun GameScreen(viewModel: GameViewModel) {
                             timerState = timerState,
                             currentBreakActivity = currentBreakActivity, //
                             currentTime = currentTime,
-                            onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
+                            onToggleTimer = {
+                                viewModel.toggleTimer(
+                                    activeQuest.quest,
+                                    soundManager
+                                )
+                            },
                             onModeToggle = { viewModel.toggleTimerMode() },
                             onComplete = {
                                 soundManager.playCoinSound()
@@ -233,7 +255,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         },
                         onBack = { currentScreen = Screen.HOME }
                     )
-                    androidx.activity.compose.BackHandler {
+                    BackHandler {
                         currentScreen = Screen.HOME
                     }
                 }

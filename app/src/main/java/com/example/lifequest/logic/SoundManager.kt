@@ -1,8 +1,9 @@
-package com.example.lifequest
+package com.example.lifequest.logic
 
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import com.example.lifequest.R
 
 class SoundManager(context: Context) {
     private val soundPool: SoundPool

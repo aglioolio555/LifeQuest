@@ -13,8 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
 import com.example.lifequest.utils.formatDateTime // 変更: formatDateTime を使用
 import com.example.lifequest.utils.formatDuration
 

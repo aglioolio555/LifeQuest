@@ -1,10 +1,11 @@
-package com.example.lifequest
+package com.example.lifequest.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.example.lifequest.data.local.entity.DailyQuestProgress
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -16,7 +17,7 @@ interface DailyQuestDao {
     fun getProgress(date: Long): DailyQuestProgress?
 
     // ★修正: 戻り値の型 (: Long) を明示
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.Companion.REPLACE)
     fun insert(progress: DailyQuestProgress): Long
 
     // ★修正: 戻り値の型 (: Int) を明示

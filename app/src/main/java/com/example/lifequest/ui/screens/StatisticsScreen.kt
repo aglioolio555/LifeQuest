@@ -1,4 +1,4 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -15,17 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.lifequest.CategoryStats
-import com.example.lifequest.DailyStats
+import com.example.lifequest.viewmodel.CategoryStats
+import com.example.lifequest.viewmodel.DailyStats
 import com.example.lifequest.QuestCategory
-import com.example.lifequest.StatisticsData
-import com.example.lifequest.utils.formatDuration
+import com.example.lifequest.viewmodel.StatisticsData
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

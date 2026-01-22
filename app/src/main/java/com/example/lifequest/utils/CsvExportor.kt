@@ -1,8 +1,8 @@
-package com.example.lifequest
+package com.example.lifequest.utils
 
 import android.content.Context
 import android.net.Uri
-import com.example.lifequest.utils.formatDate
+import com.example.lifequest.data.local.entity.QuestLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedWriter

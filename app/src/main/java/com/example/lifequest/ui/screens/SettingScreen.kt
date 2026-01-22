@@ -1,4 +1,4 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,8 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.BreakActivity
-import com.example.lifequest.UserStatus
+import com.example.lifequest.data.local.entity.BreakActivity
+import com.example.lifequest.data.local.entity.UserStatus
 import com.example.lifequest.ui.dialogs.GameTimePickerDialog
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -1,5 +1,6 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,10 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.DailyQuestProgress
+import com.example.lifequest.data.local.entity.DailyQuestProgress
 import com.example.lifequest.QuestCategory
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
+import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.ui.components.QuestItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,9 +30,9 @@ fun QuestListContent(
     dailyProgress: DailyQuestProgress,
     currentTime: Long,
     onEdit: (QuestWithSubtasks) -> Unit,
-    onToggleTimer: (com.example.lifequest.Quest) -> Unit,
-    onComplete: (com.example.lifequest.Quest) -> Unit,
-    onDelete: (com.example.lifequest.Quest) -> Unit,
+    onToggleTimer: (Quest) -> Unit,
+    onComplete: (Quest) -> Unit,
+    onDelete: (Quest) -> Unit,
     onSubtaskToggle: (Subtask) -> Unit
 ) {
     LazyColumn(
@@ -170,7 +172,7 @@ fun DailyMissionItem(title: String, isCleared: Boolean, icon: ImageVector, modif
         modifier = modifier,
         color = if (isCleared) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.small,
-        border = if (!isCleared) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
+        border = if (!isCleared) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
     ) {
         Row(
             modifier = Modifier.padding(8.dp),

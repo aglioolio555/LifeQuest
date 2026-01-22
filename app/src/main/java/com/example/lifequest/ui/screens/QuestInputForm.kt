@@ -1,4 +1,4 @@
-package com.example.lifequest.ui
+package com.example.lifequest.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons

@@ -1,5 +1,6 @@
-package com.example.lifequest
+package com.example.lifequest.logic
 
+import com.example.lifequest.FocusMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
