@@ -1,51 +1,42 @@
 package com.example.lifequest.ui.dialogs
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.Quest
-import com.example.lifequest.ui.components.DifficultySelector
+import com.example.lifequest.QuestWithSubtasks
+import com.example.lifequest.Subtask
 import com.example.lifequest.ui.components.RepeatSelector
 import com.example.lifequest.ui.components.TimeInputRow
 import com.example.lifequest.utils.formatDate
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import com.example.lifequest.QuestWithSubtasks
-import com.example.lifequest.Subtask
 
 @Composable
 fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        title = { Text("LEVEL UP!!", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary) },
-        text = {
-            Column {
-                Text("おめでとうございます！", style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("勇者レベルが $level になりました。", style = MaterialTheme.typography.titleLarge)
-            }
-        },
-        confirmButton = { Button(onClick = onDismiss) { Text("最高だ！") } }
+        title = { Text("🎉 LEVEL UP! 🎉") },
+        text = { Text("レベルが $level になりました！") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestEditDialog(
-    questWithSubtasks: QuestWithSubtasks, // ★型変更
+    questWithSubtasks: QuestWithSubtasks,
     onDismiss: () -> Unit,
     onConfirm: (Quest) -> Unit,
-    onAddSubtask: (String) -> Unit, // ★追加
-    onDeleteSubtask: (Subtask) -> Unit // ★追加
+    onAddSubtask: (String) -> Unit,
+    onDeleteSubtask: (Subtask) -> Unit
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
@@ -53,7 +44,6 @@ fun QuestEditDialog(
     var title by remember { mutableStateOf(quest.title) }
     var note by remember { mutableStateOf(quest.note) }
     var dueDate by remember { mutableStateOf(quest.dueDate) }
-    var difficulty by remember { mutableIntStateOf(quest.difficulty) }
     var repeatMode by remember { mutableIntStateOf(quest.repeatMode) }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -65,23 +55,18 @@ fun QuestEditDialog(
         mutableStateOf(((quest.estimatedTime / (1000 * 60)) % 60).toString().let { if(it=="0") "" else it })
     }
 
-    // サブタスク追加用ステート
     var newSubtaskTitle by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("クエスト修正") },
         text = {
-            // LazyColumnだとダイアログ内でスクロールしやすいが、AlertDialogのtext内で使うと競合する場合があるため、
-            // 要素数が少ない前提でColumn + verticalScrollを使うのが無難です。
-            // ここでは簡易的にColumnを使います。
-            Column(modifier = Modifier.fillMaxWidth()) { // 必要に応じて .verticalScroll(rememberScrollState())
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("クエスト名") }, singleLine = true)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("メモ") }, maxLines = 3)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- 時間・日付など ---
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     AssistChip(
                         onClick = { showDatePicker = true },
@@ -96,11 +81,9 @@ fun QuestEditDialog(
                     minutes = inputMinutes,
                     onMinutesChange = { inputMinutes = it }
                 )
-                DifficultySelector(selectedDifficulty = difficulty, onDifficultySelected = { difficulty = it })
 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                // --- サブタスク編集エリア ---
                 Text("サブタスク", style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
@@ -120,7 +103,6 @@ fun QuestEditDialog(
                     }
                 }
 
-                // 既存サブタスクリスト
                 subtasks.forEach { sub ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -147,8 +129,8 @@ fun QuestEditDialog(
                         note = note,
                         dueDate = dueDate,
                         estimatedTime = newEstimated,
-                        difficulty = difficulty,
                         repeatMode = repeatMode
+                        // difficulty は削除
                     ))
                 },
                 enabled = title.isNotBlank()

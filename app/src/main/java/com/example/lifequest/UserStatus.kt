@@ -2,35 +2,27 @@ package com.example.lifequest
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlin.math.floor
+import kotlin.math.pow
 
 @Entity(tableName = "user_status")
 data class UserStatus(
     @PrimaryKey val id: Int = 0,
     val level: Int = 1,
-    val currentExp: Int = 0,
-    val maxExp: Int = 100,
-    val gold: Int = 0
+    val experience: Int = 0
 ) {
-    // 経験値を加算し、レベルアップ後の新しいステータスを返す
-    fun addExperience(amount: Int, goldReward: Int): UserStatus {
-        var newExp = this.currentExp + amount
-        var newLevel = this.level
-        var newMaxExp = this.maxExp
-        val newGold = this.gold + goldReward
+    val nextLevelExp: Int
+        get() = floor(100 * 1.5.pow(level - 1)).toInt()
+
+    fun addExperience(exp: Int): UserStatus {
+        var newExp = experience + exp
+        var newLevel = level
 
         // レベルアップ計算
-        while (newExp >= newMaxExp) {
-            newExp -= newMaxExp
+        while (newExp >= floor(100 * 1.5.pow(newLevel - 1)).toInt()) {
+            newExp -= floor(100 * 1.5.pow(newLevel - 1)).toInt()
             newLevel++
-            // 必要経験値の増加計算 (例: レベル * 100 * 1.2)
-            newMaxExp = (newLevel * 100 * 1.2).toInt()
         }
-
-        return this.copy(
-            level = newLevel,
-            currentExp = newExp,
-            maxExp = newMaxExp,
-            gold = newGold
-        )
+        return this.copy(level = newLevel, experience = newExp)
     }
 }

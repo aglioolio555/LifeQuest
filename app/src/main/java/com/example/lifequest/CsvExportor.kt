@@ -22,12 +22,11 @@ class CsvExporter(private val context: Context) {
                 // データ
                 for (log in logs) {
                     val safeTitle = "\"${log.title.replace("\"", "\"\"")}\""
-                    val difficultyText = QuestDifficulty.fromInt(log.difficulty).name
                     val estimatedSec = log.estimatedTime / 1000
                     val actualSec = log.actualTime / 1000
                     val dateStr = formatDate(log.completedAt)
 
-                    val line = "${log.id},$safeTitle,$difficultyText,$estimatedSec,$actualSec,$dateStr\n"
+                    val line = "${log.id},$safeTitle,$estimatedSec,$actualSec,$dateStr\n"
                     writer.write(line)
                 }
                 writer.flush()

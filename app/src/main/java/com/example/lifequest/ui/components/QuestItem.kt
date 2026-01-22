@@ -20,22 +20,16 @@ import com.example.lifequest.utils.formatDuration
 
 @Composable
 fun QuestItem(
-    questWithSubtasks: QuestWithSubtasks, // ★型変更
+    questWithSubtasks: QuestWithSubtasks,
     currentTime: Long,
     onClick: () -> Unit,
     onToggleTimer: () -> Unit,
     onComplete: () -> Unit,
-    onSubtaskToggle: (Subtask) -> Unit, // ★追加
+    onSubtaskToggle: (Subtask) -> Unit,
     isLarge: Boolean = false
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
-
-    val (difficultyColor, difficultyText) = when (quest.difficulty) {
-        0 -> MaterialTheme.colorScheme.primary to "EASY"
-        2 -> MaterialTheme.colorScheme.error to "HARD"
-        else -> MaterialTheme.colorScheme.secondary to "NORMAL"
-    }
 
     val isRunning = quest.lastStartTime != null
     val displayTime = if (isRunning) {
@@ -67,19 +61,15 @@ fun QuestItem(
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // 上段：メイン情報
             Row(
                 modifier = Modifier
                     .padding(top = cardPadding, start = cardPadding, end = cardPadding, bottom = if(subtasks.isNotEmpty()) 8.dp else cardPadding)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左側: 再生/停止ボタン
                 IconButton(
                     onClick = onToggleTimer,
-                    modifier = Modifier
-                        .size(iconSize)
-                        .padding(end = 8.dp),
+                    modifier = Modifier.size(iconSize).padding(end = 8.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = if (isRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -92,9 +82,7 @@ fun QuestItem(
                     }
                 }
 
-                // 中央: 情報エリア
                 Column(modifier = Modifier.weight(1f)) {
-                    // タイトル行
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = categoryEnum.icon,
@@ -103,23 +91,15 @@ fun QuestItem(
                             tint = categoryEnum.color
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-
                         Text(text = quest.title, style = titleStyle)
-
                         if (quest.repeatMode > 0) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "繰り返し",
-                                modifier = Modifier.size(if (isLarge) 20.dp else 16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Default.Refresh, "繰り返し", modifier = Modifier.size(if (isLarge) 20.dp else 16.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
                     Spacer(modifier = Modifier.height(if (isLarge) 8.dp else 4.dp))
 
-                    // 時間表示行
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = formatDuration(displayTime),
@@ -139,21 +119,9 @@ fun QuestItem(
 
                     Spacer(modifier = Modifier.height(if (isLarge) 8.dp else 4.dp))
 
-                    // 詳細行
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "[$difficultyText]",
-                            style = if (isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
-                            color = difficultyColor,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
                         if (quest.dueDate != null) {
-                            Icon(
-                                imageVector = Icons.Default.DateRange,
-                                contentDescription = null,
-                                modifier = Modifier.size(if (isLarge) 18.dp else 14.dp),
-                                tint = MaterialTheme.colorScheme.tertiary
-                            )
+                            Icon(Icons.Default.DateRange, null, modifier = Modifier.size(if (isLarge) 18.dp else 14.dp), tint = MaterialTheme.colorScheme.tertiary)
                             Text(
                                 text = " ${formatDate(quest.dueDate!!)} ",
                                 style = if (isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
@@ -163,18 +131,11 @@ fun QuestItem(
                     }
                 }
 
-                // 右側: 完了ボタン
                 IconButton(onClick = onComplete, modifier = Modifier.size(completeIconSize)) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "完了",
-                        modifier = Modifier.size(completeIconSize),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    Icon(Icons.Default.Check, "完了", modifier = Modifier.size(completeIconSize), tint = MaterialTheme.colorScheme.primary)
                 }
             }
 
-            // 下段：サブタスクリスト
             if (subtasks.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Column(modifier = Modifier.padding(start = cardPadding + 8.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)) {
@@ -186,11 +147,7 @@ fun QuestItem(
                                 .clickable { onSubtaskToggle(subtask) }
                                 .padding(vertical = 4.dp)
                         ) {
-                            Checkbox(
-                                checked = subtask.isCompleted,
-                                onCheckedChange = { onSubtaskToggle(subtask) },
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Checkbox(checked = subtask.isCompleted, onCheckedChange = { onSubtaskToggle(subtask) }, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = subtask.title,

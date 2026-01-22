@@ -9,16 +9,11 @@ data class Quest(
     val title: String,
     val note: String = "",
     val dueDate: Long? = null,
-
-    // ★追加: 目安時間 (ミリ秒)
     val estimatedTime: Long = 0L,
-
-    val expReward: Int,
-    val goldReward: Int,
-    val difficulty: Int = 1,
-    val category: Int = 0,
-    val repeatMode: Int = 0,
     val accumulatedTime: Long = 0L,
     val lastStartTime: Long? = null,
+    val expReward: Int,
+    val repeatMode: Int = 0,
+    val category: Int = 0,
     val isCompleted: Boolean = false
 )

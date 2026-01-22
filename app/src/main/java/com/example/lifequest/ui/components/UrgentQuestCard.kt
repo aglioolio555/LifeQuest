@@ -26,11 +26,6 @@ fun UrgentQuestCard(
     onComplete: () -> Unit,
     onEdit: () -> Unit
 ) {
-    val (difficultyColor, difficultyText) = when (quest.difficulty) {
-        0 -> MaterialTheme.colorScheme.primary to "EASY"
-        2 -> MaterialTheme.colorScheme.error to "HARD"
-        else -> MaterialTheme.colorScheme.secondary to "NORMAL"
-    }
 
     val isRunning = quest.lastStartTime != null
     val displayTime = if (isRunning) {
@@ -103,13 +98,6 @@ fun UrgentQuestCard(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // 難易度バッジ
-            SuggestionChip(
-                onClick = {},
-                label = { Text(difficultyText, style = MaterialTheme.typography.labelSmall) },
-                colors = SuggestionChipDefaults.suggestionChipColors(labelColor = difficultyColor),
-                border = BorderStroke(1.dp, difficultyColor.copy(alpha = 0.5f))
-            )
 
             // --- 詳細メモ (あれば表示) ---
             if (quest.note.isNotBlank()) {

@@ -11,16 +11,13 @@ import kotlinx.coroutines.launch
 
 class GameViewModel(private val dao: UserDao) : ViewModel() {
 
-    // ユーザーの状態
     private val _uiState = MutableStateFlow(UserStatus())
     val uiState: StateFlow<UserStatus> = _uiState
 
-    // クエストリスト (★型を変更)
     private val _questList = MutableStateFlow<List<QuestWithSubtasks>>(emptyList())
     val questList: StateFlow<List<QuestWithSubtasks>> = _questList
 
     init {
-        // ユーザーステータスの監視
         viewModelScope.launch {
             dao.getUserStatus().collect { status ->
                 if (status == null) {
@@ -31,7 +28,6 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
             }
         }
 
-        // アクティブなクエストリストの監視
         viewModelScope.launch {
             dao.getActiveQuests().collect { quests ->
                 _questList.value = quests
@@ -39,20 +35,25 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         }
     }
 
-    // クエストを追加 (★サブタスクのリスト引数を追加)
+    // クエスト追加：難易度・Goldを廃止し、時間に基づくEXPを計算
     fun addQuest(
         title: String,
         note: String,
         dueDate: Long?,
-        difficultyInt: Int,
         repeatModeInt: Int,
         categoryInt: Int,
         estimatedTime: Long,
-        subtaskTitles: List<String> = emptyList() // ★追加
+        subtaskTitles: List<String> = emptyList()
     ) {
         if (title.isBlank()) return
 
-        val difficulty = QuestDifficulty.fromInt(difficultyInt)
+        // EXP計算: 60分 = 100EXP (約1.67 EXP/分)
+        val calculatedExp = if (estimatedTime > 0) {
+            val minutes = estimatedTime / (1000 * 60)
+            (minutes * 1.67).toInt().coerceAtLeast(10)
+        } else {
+            25 // 時間設定なしのデフォルト
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             val newQuest = Quest(
@@ -60,16 +61,12 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
                 note = note,
                 dueDate = dueDate,
                 estimatedTime = estimatedTime,
-                expReward = difficulty.exp,
-                goldReward = difficulty.gold,
-                difficulty = difficulty.value,
+                expReward = calculatedExp,
                 repeatMode = repeatModeInt,
                 category = categoryInt
             )
-            // クエスト挿入後にIDを取得
             val questId = dao.insertQuest(newQuest).toInt()
 
-            // ★サブタスクの登録
             subtaskTitles.forEach { subTitle ->
                 if (subTitle.isNotBlank()) {
                     dao.insertSubtask(Subtask(questId = questId, title = subTitle))
@@ -78,59 +75,6 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         }
     }
 
-    // サブタスクの追加（編集用）
-    fun addSubtask(questId: Int, title: String) {
-        if (title.isBlank()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.insertSubtask(Subtask(questId = questId, title = title))
-        }
-    }
-
-    // サブタスクの完了切替
-    fun toggleSubtask(subtask: Subtask) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.updateSubtask(subtask.copy(isCompleted = !subtask.isCompleted))
-        }
-    }
-
-    // サブタスク削除
-    fun deleteSubtask(subtask: Subtask) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.deleteSubtask(subtask)
-        }
-    }
-
-    // クエスト更新
-    fun updateQuest(quest: Quest) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.updateQuest(quest)
-        }
-    }
-
-    // クエスト削除
-    fun deleteQuest(quest: Quest) {
-        viewModelScope.launch(Dispatchers.IO) {
-            dao.deleteQuest(quest)
-        }
-    }
-
-    // タイマー切り替え
-    fun toggleTimer(quest: Quest) {
-        val now = System.currentTimeMillis()
-        viewModelScope.launch(Dispatchers.IO) {
-            if (quest.lastStartTime != null) {
-                // 停止
-                val diff = now - quest.lastStartTime
-                val newAccumulated = quest.accumulatedTime + diff
-                dao.updateQuest(quest.copy(accumulatedTime = newAccumulated, lastStartTime = null))
-            } else {
-                // 開始
-                dao.updateQuest(quest.copy(lastStartTime = now))
-            }
-        }
-    }
-
-    // クエスト完了
     fun completeQuest(quest: Quest) {
         viewModelScope.launch(Dispatchers.IO) {
             var finalActualTime = quest.accumulatedTime
@@ -140,7 +84,6 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
 
             val log = QuestLog(
                 title = quest.title,
-                difficulty = quest.difficulty,
                 estimatedTime = quest.estimatedTime,
                 actualTime = finalActualTime,
                 category = quest.category,
@@ -148,7 +91,7 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
             )
             dao.insertQuestLog(log)
 
-            val newStatus = _uiState.value.addExperience(quest.expReward, quest.goldReward)
+            val newStatus = _uiState.value.addExperience(quest.expReward)
             dao.update(newStatus)
 
             val repeatMode = RepeatMode.fromInt(quest.repeatMode)
@@ -157,10 +100,6 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
             } else {
                 val baseDate = quest.dueDate ?: System.currentTimeMillis()
                 val nextDate = repeatMode.calculateNextDueDate(baseDate)
-
-                // 繰り返し時、サブタスクの状態をリセットするかは要件によりますが、ここではリセットしない（または手動リセット）とします。
-                // 必要であればここで `dao.updateSubtask(...)` をループして false に戻す処理を追加できます。
-
                 dao.updateQuest(quest.copy(
                     dueDate = nextDate,
                     accumulatedTime = 0L,
@@ -170,7 +109,39 @@ class GameViewModel(private val dao: UserDao) : ViewModel() {
         }
     }
 
-    // CSVエクスポート
+    fun toggleTimer(quest: Quest) {
+        val now = System.currentTimeMillis()
+        viewModelScope.launch(Dispatchers.IO) {
+            if (quest.lastStartTime != null) {
+                val diff = now - quest.lastStartTime
+                dao.updateQuest(quest.copy(accumulatedTime = quest.accumulatedTime + diff, lastStartTime = null))
+            } else {
+                dao.updateQuest(quest.copy(lastStartTime = now))
+            }
+        }
+    }
+
+    fun addSubtask(questId: Int, title: String) {
+        if (title.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) { dao.insertSubtask(Subtask(questId = questId, title = title)) }
+    }
+
+    fun toggleSubtask(subtask: Subtask) {
+        viewModelScope.launch(Dispatchers.IO) { dao.updateSubtask(subtask.copy(isCompleted = !subtask.isCompleted)) }
+    }
+
+    fun deleteSubtask(subtask: Subtask) {
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteSubtask(subtask) }
+    }
+
+    fun updateQuest(quest: Quest) {
+        viewModelScope.launch(Dispatchers.IO) { dao.updateQuest(quest) }
+    }
+
+    fun deleteQuest(quest: Quest) {
+        viewModelScope.launch(Dispatchers.IO) { dao.deleteQuest(quest) }
+    }
+
     fun exportLogsToCsv(context: Context, uri: Uri) {
         viewModelScope.launch {
             val logs = dao.getAllLogsSync()
