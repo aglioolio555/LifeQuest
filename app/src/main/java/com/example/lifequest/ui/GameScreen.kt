@@ -113,7 +113,6 @@ fun QuestInputForm(onAddQuest: (String, String, Long?, Int, Int, Long, List<Stri
     var repeatMode by remember { mutableIntStateOf(0) }
     var category by remember { mutableIntStateOf(0) }
 
-    // 目安時間選択用
     var selectedTimeMillis by remember { mutableLongStateOf(15 * 60 * 1000L) }
     var isOtherSelected by remember { mutableStateOf(false) }
     var otherH by remember { mutableStateOf("") }
@@ -204,8 +203,17 @@ fun HomeScreen(status: UserStatus, urgentQuestData: QuestWithSubtasks?, currentT
         Spacer(modifier = Modifier.height(24.dp))
         Text("⚠️ CURRENT OBJECTIVE ⚠️", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
+
         if (urgentQuestData != null) {
-            QuestItem(questWithSubtasks = urgentQuestData, currentTime = currentTime, onClick = { onEdit(urgentQuestData) }, onToggleTimer = { onToggleTimer(urgentQuestData.quest) }, onComplete = { onComplete(urgentQuestData.quest) }, onSubtaskToggle = onSubtaskToggle, isLarge = true)
+            // ★変更: QuestItemからUrgentQuestCardに差し替え
+            UrgentQuestCard(
+                questWithSubtasks = urgentQuestData,
+                currentTime = currentTime,
+                onToggleTimer = { onToggleTimer(urgentQuestData.quest) },
+                onComplete = { onComplete(urgentQuestData.quest) },
+                onEdit = { onEdit(urgentQuestData) },
+                onSubtaskToggle = onSubtaskToggle
+            )
         } else {
             Card(colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Column(modifier = Modifier.padding(32.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
