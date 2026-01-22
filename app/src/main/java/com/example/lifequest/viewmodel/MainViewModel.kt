@@ -280,7 +280,7 @@ class MainViewModel(
     fun updateQuest(quest: Quest) = viewModelScope.launch { repository.updateQuest(quest) }
     fun deleteQuest(quest: Quest) = viewModelScope.launch { repository.deleteQuest(quest) }
     fun exportLogsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportLogsToCsv(context, uri) }
-
+    fun exportDailyQuestsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportDailyQuestsToCsv(context, uri) }
     private fun calculateFinalActualTime(quest: Quest): Long {
         var time = quest.accumulatedTime
         if (quest.lastStartTime != null) time += (System.currentTimeMillis() - quest.lastStartTime)

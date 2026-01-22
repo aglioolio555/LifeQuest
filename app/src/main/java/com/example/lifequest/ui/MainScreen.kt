@@ -24,7 +24,6 @@ import com.example.lifequest.logic.SoundManager
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.ui.dialogs.QuestEditDialog
 import com.example.lifequest.ui.screens.FocusScreen
-import com.example.lifequest.ui.screens.HomeScreen
 import com.example.lifequest.ui.screens.QuestInputForm
 import com.example.lifequest.ui.screens.QuestListContent
 import com.example.lifequest.ui.screens.SettingScreen
@@ -32,6 +31,7 @@ import com.example.lifequest.ui.screens.StatisticsScreen
 import com.example.lifequest.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 
+enum class ExportType { LOGS, DAILY_QUESTS }
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     // 状態の監視
@@ -47,7 +47,7 @@ fun MainScreen(viewModel: MainViewModel) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
-
+    var exportType by remember { mutableStateOf<ExportType?>(null) }
     // ライフサイクルイベントの監視（設定画面から戻った時の権限再チェック用）
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -85,8 +85,13 @@ fun MainScreen(viewModel: MainViewModel) {
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
-        if (uri != null) {
-            viewModel.exportLogsToCsv(context, uri)
+        if (uri != null && exportType != null) {
+            when (exportType) {
+                ExportType.LOGS -> viewModel.exportLogsToCsv(context, uri)
+                ExportType.DAILY_QUESTS -> viewModel.exportDailyQuestsToCsv(context, uri)
+                else -> {}
+            }
+            exportType = null // リセット
         }
     }
 
@@ -147,7 +152,6 @@ fun MainScreen(viewModel: MainViewModel) {
                             urgentQuestData = quests.firstOrNull(),
                             timerState = timerState,
                             currentTime = currentTime,
-                            onExportCsv = { exportLauncher.launch("quest_logs_backup.csv") },
                             onOpenSettings = { currentScreen = Screen.SETTINGS },
                             onEdit = { editingQuestData = it },
                             onToggleTimer = { quest ->
@@ -252,6 +256,14 @@ fun MainScreen(viewModel: MainViewModel) {
                         onDeleteActivity = { viewModel.deleteBreakActivity(it) },
                         onUpdateTargetTimes = { wh, wm, bh, bm ->
                             viewModel.updateTargetTimes(wh, wm, bh, bm) //
+                        },
+                        onExportQuestLogs = {
+                            exportType = ExportType.LOGS
+                            exportLauncher.launch("quest_logs_backup.csv")
+                        },
+                        onExportDailyQuests = {
+                            exportType = ExportType.DAILY_QUESTS
+                            exportLauncher.launch("daily_quests_backup.csv")
                         },
                         onBack = { currentScreen = Screen.HOME }
                     )

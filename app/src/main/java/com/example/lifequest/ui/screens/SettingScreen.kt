@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.List // アイコン変更
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,11 +27,11 @@ fun SettingScreen(
     onAddActivity: (String, String) -> Unit,
     onDeleteActivity: (BreakActivity) -> Unit,
     onUpdateTargetTimes: (Int, Int, Int, Int) -> Unit,
+    onExportQuestLogs: () -> Unit,   // ★変更: クエストログ用
+    onExportDailyQuests: () -> Unit, // ★追加: デイリークエスト用
     onBack: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
-
-    // 時刻設定用ダイアログの表示管理
     var showWakeUpPicker by remember { mutableStateOf(false) }
     var showBedTimePicker by remember { mutableStateOf(false) }
 
@@ -52,13 +54,12 @@ fun SettingScreen(
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
 
-            // --- デイリークエスト設定セクション ---
+            // --- デイリークエスト設定 ---
             Text("デイリークエスト設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
-
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // 起床時刻設定
+                    // ... (時刻設定部分は変更なし) ...
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -68,13 +69,9 @@ fun SettingScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("目標起床時刻", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "%02d:%02d".format(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute),
-                            style = MaterialTheme.typography.titleLarge
-                        )
+                        Text("%02d:%02d".format(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute), style = MaterialTheme.typography.titleLarge)
                     }
                     HorizontalDivider()
-                    // 就寝時刻設定
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -84,28 +81,59 @@ fun SettingScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("目標就寝時刻", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "%02d:%02d".format(userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute),
-                            style = MaterialTheme.typography.titleLarge
-                        )
+                        Text("%02d:%02d".format(userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute), style = MaterialTheme.typography.titleLarge)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- 回復アクティビティ設定セクション ---
-            Text(
-                "回復アクティビティ設定",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "休憩時間に提案される行動リストです。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            // --- データ管理セクション (★修正: 2つのボタンを配置) ---
+            Text("データ管理", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // クエストログ出力
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onExportQuestLogs() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("クエスト履歴出力 (CSV)", style = MaterialTheme.typography.bodyLarge)
+                            Text("完了したクエストの詳細ログ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    // デイリークエスト出力
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onExportDailyQuests() }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("デイリー記録出力 (CSV)", style = MaterialTheme.typography.bodyLarge)
+                            Text("起床・就寝・集中時間の毎日記録", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- 回復アクティビティ設定 ---
+            Text("回復アクティビティ設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Text("休憩時間に提案される行動リストです。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(bottom = 8.dp))
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -113,10 +141,7 @@ fun SettingScreen(
             ) {
                 items(activities) { activity ->
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(activity.title, style = MaterialTheme.typography.titleMedium)
                                 Text(activity.description, style = MaterialTheme.typography.bodySmall)
@@ -131,70 +156,32 @@ fun SettingScreen(
         }
     }
 
-    // 起床時刻選択ダイアログ
+    // ... (ダイアログ部分は変更なし) ...
     if (showWakeUpPicker) {
         GameTimePickerDialog(
             initialHour = userStatus.targetWakeUpHour,
             initialMinute = userStatus.targetWakeUpMinute,
             onDismissRequest = { showWakeUpPicker = false },
-            onConfirm = { h, m ->
-                onUpdateTargetTimes(h, m, userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute)
-                showWakeUpPicker = false
-            }
+            onConfirm = { h, m -> onUpdateTargetTimes(h, m, userStatus.targetBedTimeHour, userStatus.targetBedTimeMinute); showWakeUpPicker = false }
         )
     }
-
-    // 就寝時刻選択ダイアログ
     if (showBedTimePicker) {
         GameTimePickerDialog(
             initialHour = userStatus.targetBedTimeHour,
             initialMinute = userStatus.targetBedTimeMinute,
             onDismissRequest = { showBedTimePicker = false },
-            onConfirm = { h, m ->
-                onUpdateTargetTimes(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute, h, m)
-                showBedTimePicker = false
-            }
+            onConfirm = { h, m -> onUpdateTargetTimes(userStatus.targetWakeUpHour, userStatus.targetWakeUpMinute, h, m); showBedTimePicker = false }
         )
     }
-
-    // 新規アクティビティ追加ダイアログ
     if (showAddDialog) {
         var title by remember { mutableStateOf("") }
         var description by remember { mutableStateOf("") }
-
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("新しいアクティビティ") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text("タイトル (例: 深呼吸)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("詳細 (例: 4秒吸って...)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (title.isNotBlank()) {
-                            onAddActivity(title, description)
-                            showAddDialog = false
-                        }
-                    }
-                ) { Text("追加") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("キャンセル") }
-            }
+            text = { Column { OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル") }); Spacer(modifier = Modifier.height(8.dp)); OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("詳細") }) } },
+            confirmButton = { TextButton(onClick = { if (title.isNotBlank()) { onAddActivity(title, description); showAddDialog = false } }) { Text("追加") } },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("キャンセル") } }
         )
     }
 }
