@@ -25,6 +25,13 @@ import com.example.lifequest.utils.extractTime // 追加
 import com.example.lifequest.utils.formatDate
 import com.example.lifequest.utils.formatTime // 追加
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.*
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.example.lifequest.DailyQuestType
+
 
 // ... (LevelUpDialog, QuestDetailsDialog, GiveUpConfirmDialog は変更なし) ...
 // ★追加: 画面固定（ピン留め）の提案ダイアログ
@@ -368,4 +375,110 @@ fun QuestEditDialog(
             }
         )
     }
+}
+// ★追加: デイリークエスト達成の特別ポップアップ
+@Composable
+fun DailyQuestCompletionDialog(
+    type: DailyQuestType,
+    expEarned: Int,
+    onDismiss: () -> Unit
+) {
+    // ポップアップアニメーション
+    val scale = remember { Animatable(0.5f) }
+    LaunchedEffect(Unit) {
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = {}, // タップで閉じない（ボタン必須）
+        containerColor = Color.White, // 特別感を出すため白ベース（またはテーマ色）
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false), // 幅広に
+        text = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scale(scale.value)
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 1. アイコンと光の演出
+                    Box(contentAlignment = Alignment.Center) {
+                        // 後ろの光（簡易）
+                        Icon(
+                            imageVector = Icons.Default.Star, // 光の代わり
+                            contentDescription = null,
+                            modifier = Modifier.size(120.dp),
+                            tint = type.color.copy(alpha = 0.2f)
+                        )
+                        Icon(
+                            imageVector = type.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = type.color
+                        )
+                    }
+
+                    // 2. タイトル
+                    Text(
+                        text = "DAILY QUEST CLEARED!",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = type.color
+                    )
+
+                    Divider(color = type.color.copy(alpha = 0.5f), thickness = 2.dp, modifier = Modifier.width(60.dp))
+
+                    // 3. 詳細テキスト
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = type.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = type.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // 4. 報酬表示
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("GET REWARD", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("+ $expEarned EXP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = type.color),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                Text("素晴らしい！", fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }

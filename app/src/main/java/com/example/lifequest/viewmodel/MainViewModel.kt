@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.example.lifequest.logic.LifeQuestNotificationManager
+import com.example.lifequest.DailyQuestType
+// ★追加: ポップアップ表示用データ
+data class DailyQuestEvent(
+    val type: DailyQuestType,
+    val expEarned: Int
+)
 
 class MainViewModel(
     private val repository: MainRepository,
@@ -99,6 +105,9 @@ class MainViewModel(
 
     private var currentActiveQuestId: Int? = null
 
+    private val _popupQueue = MutableStateFlow<List<DailyQuestEvent>>(emptyList())
+    val popupQueue: StateFlow<List<DailyQuestEvent>> = _popupQueue.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.userStatus.collect {
@@ -136,10 +145,31 @@ class MainViewModel(
             val status = repository.getUserStatusSync() ?: return@launch
 
             val wakeUpExp = dailyQuestManager.checkWakeUp(status)
-            if (wakeUpExp > 0) grantExp(wakeUpExp)
+            if (wakeUpExp > 0) {
+                grantExp(wakeUpExp)
+                addToPopupQueue(DailyQuestType.WAKE_UP, wakeUpExp)
+            }
 
             val bedtimeExp = dailyQuestManager.checkBedtime(status)
-            if (bedtimeExp > 0) grantExp(bedtimeExp)
+            if (bedtimeExp > 0) {
+                grantExp(bedtimeExp)
+                addToPopupQueue(DailyQuestType.BEDTIME, bedtimeExp)
+            }
+        }
+    }
+    // ★追加: ポップアップをキューに追加する処理
+    private fun addToPopupQueue(type: DailyQuestType, exp: Int) {
+        val currentList = _popupQueue.value.toMutableList()
+        currentList.add(DailyQuestEvent(type, exp))
+        _popupQueue.value = currentList
+    }
+
+    // ★追加: ポップアップを1つ閉じる（キューから削除）
+    fun dismissCurrentPopup() {
+        val currentList = _popupQueue.value.toMutableList()
+        if (currentList.isNotEmpty()) {
+            currentList.removeAt(0)
+            _popupQueue.value = currentList
         }
     }
 
@@ -188,7 +218,11 @@ class MainViewModel(
         if (sessionTime > 0) {
             viewModelScope.launch {
                 val earnedExp = dailyQuestManager.addFocusTime(sessionTime)
-                if (earnedExp > 0) grantExp(earnedExp)
+                if (earnedExp > 0){
+                    grantExp(earnedExp)
+                    addToPopupQueue(DailyQuestType.FOCUS, earnedExp)
+
+                }
             }
         }
 
@@ -215,10 +249,16 @@ class MainViewModel(
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
 
-            // Delegate complex completion logic to Service
-            val totalExp = questCompletionService.completeQuest(quest, finalTime)
+            val result = questCompletionService.completeQuest(quest, finalTime)
 
-            if (totalExp > 0) grantExp(totalExp)
+            if (result.totalExp > 0) grantExp(result.totalExp)
+            if (result.dailyQuestType != null) {
+                // デイリーミッション分のEXPは QuestCompletionService 内で加算済みだが、
+                // ここでは演出用に目安として20EXP (DailyQuestManager.CATEGORY_EXP) を渡すか、
+                // 正確には result.totalExp を渡してもよい。ここでは「ボーナス分」として固定値を渡すか、
+                // DailyQuestManagerの定数を公開して参照するのがベストだが、簡易的に20とする。
+                addToPopupQueue(result.dailyQuestType, 20)
+            }
         }
     }
 

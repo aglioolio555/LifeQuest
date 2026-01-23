@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.lifequest.MainActivity // ★追加
 import com.example.lifequest.logic.SoundManager
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.ui.dialogs.QuestEditDialog
@@ -30,6 +31,7 @@ import com.example.lifequest.ui.screens.SettingScreen
 import com.example.lifequest.ui.screens.StatisticsScreen
 import com.example.lifequest.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
+import com.example.lifequest.ui.dialogs.DailyQuestCompletionDialog
 
 enum class ExportType { LOGS, DAILY_QUESTS }
 @Composable
@@ -48,6 +50,9 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
+    // ★追加: Activityへの参照を取得
+    val activity = context as? MainActivity
+
     val soundManager = remember { SoundManager(context) }
     var exportType by remember { mutableStateOf<ExportType?>(null) }
     // ライフサイクルイベントの監視（設定画面から戻った時の権限再チェック用）
@@ -98,6 +103,9 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 
     var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
+    // ★追加: ポップアップキューの監視
+    val popupQueue by viewModel.popupQueue.collectAsState()
+
 
     Scaffold(
         bottomBar = {
@@ -159,6 +167,8 @@ fun MainScreen(viewModel: MainViewModel) {
                             onToggleTimer = { quest ->
                                 if (!timerState.isRunning) {
                                     viewModel.toggleTimer(quest, soundManager)
+                                    // ★変更: クエスト開始時に自動で画面固定
+                                    activity?.startPinning()
                                 }
                                 currentScreen = Screen.FOCUS
                             },
@@ -178,6 +188,8 @@ fun MainScreen(viewModel: MainViewModel) {
                         onEdit = { editingQuestData = it },
                         onToggleTimer = { quest ->
                             viewModel.toggleTimer(quest, soundManager)
+                            // ★変更: クエスト開始時に自動で画面固定
+                            activity?.startPinning()
                             currentScreen = Screen.FOCUS
                         },
                         onComplete = { quest ->
@@ -280,7 +292,18 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
     }
-
+    // ★追加: デイリークエスト達成ポップアップの表示制御
+    if (popupQueue.isNotEmpty()) {
+        val currentEvent = popupQueue.first()
+        DailyQuestCompletionDialog(
+            type = currentEvent.type,
+            expEarned = currentEvent.expEarned,
+            onDismiss = {
+                soundManager.playCoinSound() // 閉じる時に音を鳴らす
+                viewModel.dismissCurrentPopup() // 次のポップアップへ（あれば）
+            }
+        )
+    }
     // 編集ダイアログ管理
     if (editingQuestData != null) {
         QuestEditDialog(

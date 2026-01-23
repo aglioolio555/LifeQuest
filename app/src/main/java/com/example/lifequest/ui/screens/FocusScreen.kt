@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.lifequest.data.local.entity.BreakActivity // ★追加
+import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.FocusMode
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
@@ -25,16 +25,16 @@ import com.example.lifequest.logic.TimerState
 import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog
 import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration
-import androidx.compose.ui.platform.LocalContext // 追加
-import com.example.lifequest.MainActivity // 追加
-import com.example.lifequest.ui.dialogs.PinningConfirmDialog // 追加
+import androidx.compose.ui.platform.LocalContext
+import com.example.lifequest.MainActivity
+// import com.example.lifequest.ui.dialogs.PinningConfirmDialog // 削除
 import com.example.lifequest.ui.dialogs.WelcomeBackDialog
 
 @Composable
 fun FocusScreen(
     questWithSubtasks: QuestWithSubtasks,
     timerState: TimerState,
-    currentBreakActivity: BreakActivity?, // ★追加
+    currentBreakActivity: BreakActivity?,
     currentTime: Long,
     isInterrupted: Boolean = false,
     onResumeFromInterruption: () -> Unit = {},
@@ -43,8 +43,8 @@ fun FocusScreen(
     onComplete: () -> Unit,
     onSubtaskToggle: (Subtask) -> Unit,
     onExit: () -> Unit,
-    onRerollBreakActivity: () -> Unit, // ★追加
-    onCompleteBreakActivity: () -> Unit // ★追加
+    onRerollBreakActivity: () -> Unit,
+    onCompleteBreakActivity: () -> Unit
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
@@ -66,45 +66,39 @@ fun FocusScreen(
     val context = LocalContext.current
     val activity = context as? MainActivity
 
-    // ★追加: ピン留め提案ダイアログの表示状態
-    // タイマーが走っておらず、休憩中でもない、最初の開始時に表示したい
-    var showPinningDialog by remember { mutableStateOf(false) }
+    // ★削除: PinningConfirmDialog用の状態変数は不要
+    // var showPinningDialog by remember { mutableStateOf(false) }
 
-    // タイマー開始ボタンが押されたときのラッパー
+    // ★変更: 自動固定ロジック
     val handleStartTimer = {
         if (!timerState.isRunning && !timerState.isBreak) {
-            // タイマー開始前ならピン留めを提案
-            showPinningDialog = true
+            // タイマー開始時は問答無用で画面固定を試行
+            activity?.startPinning()
+            onToggleTimer()
         } else {
             onToggleTimer()
         }
     }
 
-    // ★追加: 中断からの復帰ダイアログ表示
+    // ★追加: 完了時は固定解除
+    val handleComplete = {
+        activity?.stopPinning()
+        onComplete()
+    }
+
+    // ★追加: 中断時は固定解除
+    val handleExit = {
+        activity?.stopPinning()
+        onExit()
+    }
+
+    // 中断からの復帰ダイアログ
     if (isInterrupted) {
         WelcomeBackDialog(onResume = onResumeFromInterruption)
     }
 
-    // ★追加: ピン留め提案ダイアログ
-    if (showPinningDialog) {
-        PinningConfirmDialog(
-            onDismiss = {
-                showPinningDialog = false
-                onToggleTimer() // ピン留めなしで開始
-            },
-            onConfirm = {
-                showPinningDialog = false
-                activity?.startPinning() // ピン留め実行
-                onToggleTimer() // 開始
-            }
-        )
-    }
+    // ★削除: PinningConfirmDialogの呼び出しブロック
 
-    // 既存の onExit ラッパー (固定解除を追加)
-    val handleExit = {
-        activity?.stopPinning() // 画面固定を解除
-        onExit()
-    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -160,7 +154,6 @@ fun FocusScreen(
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    // モード表示 (休憩中は非表示または固定)
                     if (!timerState.isBreak) {
                         Surface(
                             onClick = onModeToggle,
@@ -197,7 +190,6 @@ fun FocusScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ★変更: 休憩中でアクティビティがある場合は提案カードを表示
             if (timerState.isBreak && currentBreakActivity != null) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -225,14 +217,13 @@ fun FocusScreen(
                     }
                 }
             } else {
-                // 通常の操作ボタン
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledIconButton(
-                        onClick = handleStartTimer,
+                        onClick = handleStartTimer, // ★変更: ダイアログなしの関数
                         modifier = Modifier.size(80.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
                     ) {
@@ -244,7 +235,7 @@ fun FocusScreen(
                     }
 
                     FilledTonalIconButton(
-                        onClick = onComplete,
+                        onClick = handleComplete, // ★変更: 固定解除付き関数
                         modifier = Modifier.size(64.dp)
                     ) {
                         Icon(
@@ -272,7 +263,7 @@ fun FocusScreen(
             onDismiss = { showGiveUpDialog = false },
             onConfirm = {
                 showGiveUpDialog = false
-                handleExit()
+                handleExit() // ★変更: 固定解除付き関数
             }
         )
     }

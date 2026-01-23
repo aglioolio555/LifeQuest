@@ -6,16 +6,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
-// 難易度と報酬定義
-//enum class QuestDifficulty(val value: Int, val exp: Int, val gold: Int) {
-//    EASY(0, 10, 5),
-//    NORMAL(1, 30, 15),
-//    HARD(2, 100, 50);
-//
-//    companion object {
-//        fun fromInt(value: Int) = entries.find { it.value == value } ?: NORMAL
-//    }
-//}
+//デイリークエストの種類定義
+enum class DailyQuestType(val title: String, val message: String, val icon: ImageVector, val color: Color) {
+    WAKE_UP("早起き達成", "素晴らしい一日の始まりです！", Icons.Default.WbSunny, Color(0xFFFFA000)), // オレンジ
+    BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, Color(0xFF3F51B5)), // インディゴ
+    FOCUS("集中リミット突破", "驚異的な集中力です！", Icons.Default.Timer, Color(0xFFF44336)),    // 赤
+    BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, Color(0xFF4CAF50)); // 緑
+}
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {
     LIFE(0, "生活", Icons.Default.Home, Color(0xFF4CAF50)),       // 緑

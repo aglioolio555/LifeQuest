@@ -4,7 +4,12 @@ import com.example.lifequest.RepeatMode
 import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.data.local.entity.QuestLog
 import com.example.lifequest.data.repository.MainRepository
+import com.example.lifequest.DailyQuestType
 
+data class QuestCompletionResult(
+    val totalExp: Int,
+    val dailyQuestType: DailyQuestType? = null // デイリー達成があればセットされる
+)
 class QuestCompletionService(
     private val repository: MainRepository,
     private val dailyQuestManager: DailyQuestManager
@@ -12,9 +17,9 @@ class QuestCompletionService(
 
     /**
      * クエスト完了処理を実行する
-     * @return 獲得した総経験値 (クエスト報酬 + デイリーボーナス)
+     * @return QuestCompletionResult 獲得した総経験値 (クエスト報酬 + デイリーボーナス)
      */
-    suspend fun completeQuest(quest: Quest, actualTime: Long): Int {
+    suspend fun completeQuest(quest: Quest, actualTime: Long): QuestCompletionResult {
         var totalExpGained = 0
 
         // 1. ログの保存
@@ -34,6 +39,8 @@ class QuestCompletionService(
         val categoryBonus = dailyQuestManager.checkCategoryComplete(quest.category)
         totalExpGained += categoryBonus
 
+        val dailyType = if (categoryBonus > 0) DailyQuestType.BALANCE else null
+
         // 4. 繰り返し設定に基づく 次回の作成 または 削除
         val repeat = RepeatMode.fromInt(quest.repeatMode)
         if (repeat == RepeatMode.NONE) {
@@ -49,6 +56,6 @@ class QuestCompletionService(
             repository.updateQuest(nextQuest)
         }
 
-        return totalExpGained
+        return QuestCompletionResult(totalExpGained, dailyType)
     }
 }
