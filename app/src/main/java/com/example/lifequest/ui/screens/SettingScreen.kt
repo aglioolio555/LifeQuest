@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.data.local.entity.UserStatus
 import com.example.lifequest.ui.dialogs.GameTimePickerDialog
+import com.example.lifequest.data.local.entity.ExtraQuest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,9 +31,9 @@ fun SettingScreen(
     onUpdateTargetTimes: (Int, Int, Int, Int) -> Unit,
     onExportQuestLogs: () -> Unit,   // ★変更: クエストログ用
     onExportDailyQuests: () -> Unit, // ★追加: デイリークエスト用
-    extraQuests: List<com.example.lifequest.data.local.entity.ExtraQuest> = emptyList(),
+    extraQuests: List<ExtraQuest> = emptyList(),
     onAddExtraQuest: (String, String, Int) -> Unit = {_,_,_ ->},
-    onDeleteExtraQuest: (com.example.lifequest.data.local.entity.ExtraQuest) -> Unit = {},
+    onDeleteExtraQuest: (ExtraQuest) -> Unit = {},
     onBack: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }

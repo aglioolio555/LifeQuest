@@ -111,7 +111,7 @@ fun MainScreen(viewModel: MainViewModel) {
     val popupQueue by viewModel.popupQueue.collectAsState()
 
     val suggestedExtraQuest by viewModel.suggestedExtraQuest.collectAsState()
-
+    val extraQuests by viewModel.extraQuests.collectAsState()
     Scaffold(
         bottomBar = {
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
@@ -290,6 +290,13 @@ fun MainScreen(viewModel: MainViewModel) {
                         onExportDailyQuests = {
                             exportType = ExportType.DAILY_QUESTS
                             exportLauncher.launch("daily_quests_backup.csv")
+                        },
+                        extraQuests = extraQuests,
+                        onAddExtraQuest = { title, desc, minutes ->
+                            viewModel.addExtraQuest(title, desc, minutes)
+                        },
+                        onDeleteExtraQuest = { extra ->
+                            viewModel.deleteExtraQuest(extra)
                         },
                         onBack = { currentScreen = Screen.HOME }
                     )
