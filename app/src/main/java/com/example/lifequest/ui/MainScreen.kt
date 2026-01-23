@@ -2,6 +2,7 @@ package com.example.lifequest.ui
 
 import android.content.Intent
 import android.provider.Settings
+import android.widget.Toast // 追加
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.example.lifequest.MainActivity // ★追加
+import com.example.lifequest.MainActivity
 import com.example.lifequest.logic.SoundManager
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.ui.dialogs.QuestEditDialog
@@ -38,7 +39,8 @@ enum class ExportType { LOGS, DAILY_QUESTS }
 fun MainScreen(viewModel: MainViewModel) {
     // 状態の監視
     val status by viewModel.uiState.collectAsState()
-    val quests by viewModel.questList.collectAsState()
+    val quests by viewModel.questList.collectAsState() // これは「今日」のクエストのみになる
+    val futureQuests by viewModel.futureQuestList.collectAsState() // ★追加: 未来のクエスト
     val timerState by viewModel.timerState.collectAsState()
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
@@ -50,13 +52,19 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
-    // ★追加: Activityへの参照を取得
     val activity = context as? MainActivity
 
     val soundManager = remember { SoundManager(context) }
     var exportType by remember { mutableStateOf<ExportType?>(null) }
-    // ライフサイクルイベントの監視（設定画面から戻った時の権限再チェック用）
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    // ★追加: Toastイベントの監視
+    LaunchedEffect(Unit) {
+        viewModel.toastEvent.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -70,7 +78,6 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    // レベルアップ演出
     var previousLevel by remember { mutableIntStateOf(status.level) }
     LaunchedEffect(status.level) {
         if (status.level > previousLevel && previousLevel > 0) {
@@ -79,7 +86,6 @@ fun MainScreen(viewModel: MainViewModel) {
         previousLevel = status.level
     }
 
-    // クロック更新
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -88,7 +94,6 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    // CSV出力ランチャー
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
@@ -103,13 +108,11 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 
     var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
-    // ★追加: ポップアップキューの監視
     val popupQueue by viewModel.popupQueue.collectAsState()
 
 
     Scaffold(
         bottomBar = {
-            // FOCUSとSETTINGS表示時はボトムバーを隠す
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
                 NavigationBar {
                     Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }.forEach { screen ->
@@ -128,7 +131,6 @@ fun MainScreen(viewModel: MainViewModel) {
             when (currentScreen) {
                 Screen.HOME -> {
                     Column {
-                        // 権限不足時の警告通知
                         if (missingPermission) {
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -167,7 +169,6 @@ fun MainScreen(viewModel: MainViewModel) {
                             onToggleTimer = { quest ->
                                 if (!timerState.isRunning) {
                                     viewModel.toggleTimer(quest, soundManager)
-                                    // ★変更: クエスト開始時に自動で画面固定
                                     activity?.startPinning()
                                 }
                                 currentScreen = Screen.FOCUS
@@ -183,12 +184,12 @@ fun MainScreen(viewModel: MainViewModel) {
                 Screen.LIST -> {
                     QuestListContent(
                         quests = quests,
-                        dailyProgress = dailyProgress, //
+                        futureQuests = futureQuests, // ★追加: 未来のクエストも渡す
+                        dailyProgress = dailyProgress,
                         currentTime = currentTime,
                         onEdit = { editingQuestData = it },
                         onToggleTimer = { quest ->
                             viewModel.toggleTimer(quest, soundManager)
-                            // ★変更: クエスト開始時に自動で画面固定
                             activity?.startPinning()
                             currentScreen = Screen.FOCUS
                         },
@@ -231,7 +232,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         FocusScreen(
                             questWithSubtasks = activeQuest,
                             timerState = timerState,
-                            currentBreakActivity = currentBreakActivity, //
+                            currentBreakActivity = currentBreakActivity,
                             currentTime = currentTime,
 
                             isInterrupted = isInterrupted,
@@ -264,16 +265,16 @@ fun MainScreen(viewModel: MainViewModel) {
                     }
                 }
                 Screen.STATISTICS -> {
-                    StatisticsScreen(statistics = statistics) //
+                    StatisticsScreen(statistics = statistics)
                 }
                 Screen.SETTINGS -> {
                     SettingScreen(
                         activities = breakActivities,
-                        userStatus = status, //
+                        userStatus = status,
                         onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
                         onDeleteActivity = { viewModel.deleteBreakActivity(it) },
                         onUpdateTargetTimes = { wh, wm, bh, bm ->
-                            viewModel.updateTargetTimes(wh, wm, bh, bm) //
+                            viewModel.updateTargetTimes(wh, wm, bh, bm)
                         },
                         onExportQuestLogs = {
                             exportType = ExportType.LOGS
@@ -292,19 +293,19 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
     }
-    // ★追加: デイリークエスト達成ポップアップの表示制御
+
     if (popupQueue.isNotEmpty()) {
         val currentEvent = popupQueue.first()
         DailyQuestCompletionDialog(
             type = currentEvent.type,
             expEarned = currentEvent.expEarned,
             onDismiss = {
-                soundManager.playCoinSound() // 閉じる時に音を鳴らす
-                viewModel.dismissCurrentPopup() // 次のポップアップへ（あれば）
+                soundManager.playCoinSound()
+                viewModel.dismissCurrentPopup()
             }
         )
     }
-    // 編集ダイアログ管理
+
     if (editingQuestData != null) {
         QuestEditDialog(
             questWithSubtasks = editingQuestData!!,

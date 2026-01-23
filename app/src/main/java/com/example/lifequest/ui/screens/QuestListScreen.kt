@@ -1,15 +1,19 @@
 package com.example.lifequest.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +31,7 @@ import com.example.lifequest.ui.components.QuestItem
 @Composable
 fun QuestListContent(
     quests: List<QuestWithSubtasks>,
+    futureQuests: List<QuestWithSubtasks>, // ★追加: 未来のクエストリスト
     dailyProgress: DailyQuestProgress,
     currentTime: Long,
     onEdit: (QuestWithSubtasks) -> Unit,
@@ -50,13 +55,13 @@ fun QuestListContent(
             )
         }
 
-        // --- 通常のクエストリスト ---
+        // --- 通常のクエストリスト (今日やるべきもの) ---
         if (quests.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp),
+                        .height(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("現在アクティブなクエストはありません", color = MaterialTheme.colorScheme.secondary)
@@ -64,6 +69,7 @@ fun QuestListContent(
             }
         } else {
             items(items = quests, key = { it.quest.id }) { item ->
+                // ... (既存のSwipeToDismissBox処理) ...
                 val quest = item.quest
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = {
@@ -99,10 +105,82 @@ fun QuestListContent(
                 )
             }
         }
+
+        // --- ★追加: 今後のリピート予定（折りたたみ） ---
+        if (futureQuests.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                FutureQuestsSection(futureQuests = futureQuests, onEdit = onEdit)
+            }
+        }
     }
 }
 
-// --- デイリーミッション進捗表示コンポーネント ---
+// ★追加: 未来のクエストを表示するセクション
+@Composable
+fun FutureQuestsSection(
+    futureQuests: List<QuestWithSubtasks>,
+    onEdit: (QuestWithSubtasks) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "今後のリピート予定 (${futureQuests.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "閉じる" else "開く",
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    futureQuests.forEach { item ->
+                        // 簡易表示（タイマーなどは不要なので、タイトルと日付のみ）
+                        ListItem(
+                            headlineContent = { Text(item.quest.title, style = MaterialTheme.typography.bodyLarge) },
+                            supportingContent = {
+                                val date = item.quest.dueDate
+                                if (date != null) {
+                                    Text("次回予定: ${com.example.lifequest.utils.formatDate(date)}")
+                                }
+                            },
+                            leadingContent = {
+                                Icon(
+                                    imageVector = com.example.lifequest.QuestCategory.fromInt(item.quest.category).icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                )
+                            },
+                            modifier = Modifier.clickable { onEdit(item) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ... (DailyQuestSection以降はそのまま)
 @Composable
 fun DailyQuestSection(progress: DailyQuestProgress) {
     Card(

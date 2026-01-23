@@ -8,11 +8,13 @@ import com.example.lifequest.DailyQuestType
 
 data class QuestCompletionResult(
     val totalExp: Int,
-    val dailyQuestType: DailyQuestType? = null // デイリー達成があればセットされる
+    val dailyQuestType: DailyQuestType? = null, // デイリー達成があればセットされる
+    val nextDueDate: Long? = null
 )
 class QuestCompletionService(
     private val repository: MainRepository,
-    private val dailyQuestManager: DailyQuestManager
+    private val dailyQuestManager: DailyQuestManager,
+
 ) {
 
     /**
@@ -42,11 +44,13 @@ class QuestCompletionService(
         val dailyType = if (categoryBonus > 0) DailyQuestType.BALANCE else null
 
         // 4. 繰り返し設定に基づく 次回の作成 または 削除
+        var nextDueDate: Long? = null
         val repeat = RepeatMode.fromInt(quest.repeatMode)
         if (repeat == RepeatMode.NONE) {
             repository.deleteQuest(quest)
         } else {
             val nextDate = repeat.calculateNextDueDate(quest.dueDate ?: System.currentTimeMillis())
+            nextDueDate = nextDate
             // 繰り返し時は期限を更新し、累積時間をリセットして更新
             val nextQuest = quest.copy(
                 dueDate = nextDate,
@@ -56,6 +60,6 @@ class QuestCompletionService(
             repository.updateQuest(nextQuest)
         }
 
-        return QuestCompletionResult(totalExpGained, dailyType)
+        return QuestCompletionResult(totalExpGained, dailyType,nextDueDate)
     }
 }

@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lifequest.DailyQuestType
 import com.example.lifequest.FocusMode
+import com.example.lifequest.RepeatMode // 追加
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.logic.FocusTimerManager
 import com.example.lifequest.logic.SoundManager
@@ -20,12 +22,14 @@ import com.example.lifequest.data.local.entity.Subtask
 import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.model.StatisticsData
 import com.example.lifequest.utils.UsageStatsHelper
+import com.example.lifequest.utils.formatDate // 追加
+import kotlinx.coroutines.delay // 追加
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.example.lifequest.logic.LifeQuestNotificationManager
-import com.example.lifequest.DailyQuestType
-// ★追加: ポップアップ表示用データ
+import kotlinx.coroutines.channels.Channel // 追加
+
 data class DailyQuestEvent(
     val type: DailyQuestType,
     val expEarned: Int
@@ -57,12 +61,49 @@ class MainViewModel(
             initialValue = UserStatus()
         )
 
-    val questList: StateFlow<List<QuestWithSubtasks>> = repository.activeQuests
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    // ★変更: 今日の終わり（判定基準）を定期的に更新するFlow
+    private val endOfTodayFlow = flow {
+        while (true) {
+            val calendar = Calendar.getInstance()
+            calendar.set(Calendar.HOUR_OF_DAY, 23)
+            calendar.set(Calendar.MINUTE, 59)
+            calendar.set(Calendar.SECOND, 59)
+            calendar.set(Calendar.MILLISECOND, 999)
+            emit(calendar.timeInMillis)
+            delay(60_000) // 1分ごとに更新
+        }
+    }
+
+    // ★変更: 全てのアクティブクエストを取得
+    private val allActiveQuests = repository.activeQuests
+
+    // ★変更: 「今日やるべきクエスト」のみをフィルタリングして公開
+    // 条件: リピートなし OR (期限日が設定されており、かつ期限が今日の終わり以前)
+    val questList: StateFlow<List<QuestWithSubtasks>> = combine(allActiveQuests, endOfTodayFlow) { quests, endOfToday ->
+        quests.filter { item ->
+            val q = item.quest
+            // リピートなし(0) は常に表示。リピートありなら期限チェック。
+            // ※期限なし(null)のリピートクエストというケースがあるなら考慮必要だが、通常リピートは期限あり前提
+            q.repeatMode == RepeatMode.NONE.value || (q.dueDate ?: 0L) <= endOfToday
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    // ★追加: 「未来の待機中クエスト」リスト（明日以降に出現予定のもの）
+    val futureQuestList: StateFlow<List<QuestWithSubtasks>> = combine(allActiveQuests, endOfTodayFlow) { quests, endOfToday ->
+        quests.filter { item ->
+            val q = item.quest
+            // リピートあり かつ 期限が明日以降
+            q.repeatMode != RepeatMode.NONE.value && (q.dueDate ?: 0L) > endOfToday
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     val breakActivities: StateFlow<List<BreakActivity>> = repository.allBreakActivities
         .stateIn(
@@ -76,7 +117,6 @@ class MainViewModel(
 
     val timerState = timerManager.timerState
 
-    // 統計データ (Delegated to StatisticsCalculator)
     val statistics: StateFlow<StatisticsData> = repository.questLogs
         .map { logs -> statisticsCalculator.calculate(logs) }
         .stateIn(
@@ -85,7 +125,6 @@ class MainViewModel(
             initialValue = StatisticsData()
         )
 
-    // デイリークエスト進捗 (Delegated to DailyQuestManager through Repository)
     val dailyProgress: StateFlow<DailyQuestProgress> = repository.getDailyProgressFlow(getTodayStartMillis())
         .map { it ?: DailyQuestProgress(date = getTodayStartMillis()) }
         .onEach { progress ->
@@ -99,11 +138,14 @@ class MainViewModel(
             initialValue = DailyQuestProgress(date = getTodayStartMillis())
         )
 
-    // 権限不足通知用
     private val _missingPermission = MutableStateFlow(false)
     val missingPermission: StateFlow<Boolean> = _missingPermission.asStateFlow()
 
     private var currentActiveQuestId: Int? = null
+
+    // ★追加: トースト通知用のイベントチャンネル
+    private val _toastEvent = Channel<String>(Channel.BUFFERED)
+    val toastEvent = _toastEvent.receiveAsFlow()
 
     private val _popupQueue = MutableStateFlow<List<DailyQuestEvent>>(emptyList())
     val popupQueue: StateFlow<List<DailyQuestEvent>> = _popupQueue.asStateFlow()
@@ -117,7 +159,8 @@ class MainViewModel(
 
         // Timer auto-mode initialization
         viewModelScope.launch {
-            repository.activeQuests.collect { quests ->
+            // ここは activeQuests 全体を見て判定しても良いが、表示中のものに合わせるなら questList を使う
+            questList.collect { quests ->
                 val topQuest = quests.firstOrNull()?.quest
                 if (topQuest != null && currentActiveQuestId != topQuest.id) {
                     currentActiveQuestId = topQuest.id
@@ -130,6 +173,7 @@ class MainViewModel(
         _missingPermission.value = !usageStatsHelper.hasPermission()
     }
 
+    // ... (既存メソッド getTodayStartMillis, performDailyChecks, addToPopupQueue, dismissCurrentPopup, refreshPermissionCheck, updateTargetTimes, toggleTimer, toggleTimerMode, handleTimerFinish) ...
     private fun getTodayStartMillis(): Long {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -139,7 +183,6 @@ class MainViewModel(
         return calendar.timeInMillis
     }
 
-    // --- Daily Quest Actions ---
     private fun performDailyChecks() {
         viewModelScope.launch {
             val status = repository.getUserStatusSync() ?: return@launch
@@ -157,14 +200,13 @@ class MainViewModel(
             }
         }
     }
-    // ★追加: ポップアップをキューに追加する処理
+
     private fun addToPopupQueue(type: DailyQuestType, exp: Int) {
         val currentList = _popupQueue.value.toMutableList()
         currentList.add(DailyQuestEvent(type, exp))
         _popupQueue.value = currentList
     }
 
-    // ★追加: ポップアップを1つ閉じる（キューから削除）
     fun dismissCurrentPopup() {
         val currentList = _popupQueue.value.toMutableList()
         if (currentList.isNotEmpty()) {
@@ -192,7 +234,6 @@ class MainViewModel(
         }
     }
 
-    // --- Timer & Quest Actions ---
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
         if (timerState.value.isRunning) {
             timerManager.stopTimer()
@@ -218,10 +259,9 @@ class MainViewModel(
         if (sessionTime > 0) {
             viewModelScope.launch {
                 val earnedExp = dailyQuestManager.addFocusTime(sessionTime)
-                if (earnedExp > 0){
+                if (earnedExp > 0) {
                     grantExp(earnedExp)
                     addToPopupQueue(DailyQuestType.FOCUS, earnedExp)
-
                 }
             }
         }
@@ -242,6 +282,7 @@ class MainViewModel(
         }
     }
 
+
     // --- CRUD & Helper Wrappers ---
 
     fun completeQuest(quest: Quest) {
@@ -249,19 +290,24 @@ class MainViewModel(
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
 
+            // ★変更: 結果を受け取り、次回の予定があれば通知する
             val result = questCompletionService.completeQuest(quest, finalTime)
 
             if (result.totalExp > 0) grantExp(result.totalExp)
+
             if (result.dailyQuestType != null) {
-                // デイリーミッション分のEXPは QuestCompletionService 内で加算済みだが、
-                // ここでは演出用に目安として20EXP (DailyQuestManager.CATEGORY_EXP) を渡すか、
-                // 正確には result.totalExp を渡してもよい。ここでは「ボーナス分」として固定値を渡すか、
-                // DailyQuestManagerの定数を公開して参照するのがベストだが、簡易的に20とする。
                 addToPopupQueue(result.dailyQuestType, 20)
+            }
+
+            // ★追加: リピートクエストの次回予定通知
+            if (result.nextDueDate != null) {
+                val dateStr = formatDate(result.nextDueDate)
+                _toastEvent.send("次回は $dateStr に表示されます")
             }
         }
     }
 
+    // ... (残りのメソッドは変更なし) ...
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = rewardCalculator.calculateExp(estimatedTime)
@@ -327,31 +373,25 @@ class MainViewModel(
         if (quest.lastStartTime != null) time += (System.currentTimeMillis() - quest.lastStartTime)
         return time
     }
-    // ★追加: 中断状態の管理
+
     private val _isInterrupted = MutableStateFlow(false)
     val isInterrupted: StateFlow<Boolean> = _isInterrupted.asStateFlow()
 
-    // ★追加: 通知マネージャー (MainActivity等からセットされる想定、またはDI)
     var notificationManager: LifeQuestNotificationManager? = null
 
-    // ★追加: アプリがバックグラウンドに回った時の処理
     fun onAppBackgrounded() {
         if (timerState.value.isRunning) {
             _isInterrupted.value = true
-            // 現在のクエスト名を取得して通知
             val currentQuest = questList.value.firstOrNull()?.quest
             val title = currentQuest?.title ?: "クエスト"
             notificationManager?.showReturnNotification(title)
         }
     }
 
-    // ★追加: アプリがフォアグラウンドに戻った時の処理
     fun onAppForegrounded() {
         notificationManager?.cancelNotification()
-        // ここではフラグをリセットせず、UI側でダイアログを表示してユーザーが「再開」を押したらリセットする
     }
 
-    // ★追加: 中断状態からの復帰（ダイアログでの承認時）
     fun resumeFromInterruption() {
         _isInterrupted.value = false
     }
