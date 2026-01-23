@@ -110,6 +110,7 @@ fun MainScreen(viewModel: MainViewModel) {
     var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
     val popupQueue by viewModel.popupQueue.collectAsState()
 
+    val suggestedExtraQuest by viewModel.suggestedExtraQuest.collectAsState()
 
     Scaffold(
         bottomBar = {
@@ -162,6 +163,12 @@ fun MainScreen(viewModel: MainViewModel) {
                         HomeScreen(
                             status = status,
                             urgentQuestData = quests.firstOrNull(),
+                            suggestedExtraQuest = suggestedExtraQuest,
+                            onStartBonusMission = { extra ->
+                                viewModel.startBonusMission(extra, soundManager)
+                                activity?.startPinning()
+                                currentScreen = Screen.FOCUS
+                            },
                             timerState = timerState,
                             currentTime = currentTime,
                             onOpenSettings = { currentScreen = Screen.SETTINGS },

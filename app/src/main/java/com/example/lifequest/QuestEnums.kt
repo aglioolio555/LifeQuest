@@ -11,7 +11,8 @@ enum class DailyQuestType(val title: String, val message: String, val icon: Imag
     WAKE_UP("早起き達成", "素晴らしい一日の始まりです！", Icons.Default.WbSunny, Color(0xFFFFA000)), // オレンジ
     BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, Color(0xFF3F51B5)), // インディゴ
     FOCUS("集中リミット突破", "驚異的な集中力です！", Icons.Default.Timer, Color(0xFFF44336)),    // 赤
-    BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, Color(0xFF4CAF50)); // 緑
+    BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, Color(0xFF4CAF50)), // 緑
+    BONUS("ボーナスミッション達成", "自己研鑽への挑戦、素晴らしい！", Icons.Default.Star, Color(0xFF9C27B0));
 }
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {

@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.data.local.entity.UserStatus
@@ -29,9 +30,13 @@ fun SettingScreen(
     onUpdateTargetTimes: (Int, Int, Int, Int) -> Unit,
     onExportQuestLogs: () -> Unit,   // ★変更: クエストログ用
     onExportDailyQuests: () -> Unit, // ★追加: デイリークエスト用
+    extraQuests: List<com.example.lifequest.data.local.entity.ExtraQuest> = emptyList(),
+    onAddExtraQuest: (String, String, Int) -> Unit = {_,_,_ ->},
+    onDeleteExtraQuest: (com.example.lifequest.data.local.entity.ExtraQuest) -> Unit = {},
     onBack: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showExtraAddDialog by remember { mutableStateOf(false) }
     var showWakeUpPicker by remember { mutableStateOf(false) }
     var showBedTimePicker by remember { mutableStateOf(false) }
 
@@ -130,7 +135,45 @@ fun SettingScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            // ★追加: エキストラクエスト管理セクション
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("ボーナスミッション設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("全タスク完了後にランダム出現", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                }
+                IconButton(onClick = { showExtraAddDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "追加", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
 
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 200.dp), // 高さ制限
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 8.dp)
+            ) {
+                items(extraQuests) { extra ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(extra.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                Text("${extra.estimatedTime / 60000}分 / +${extra.expReward}EXP", style = MaterialTheme.typography.bodySmall)
+                            }
+                            IconButton(onClick = { onDeleteExtraQuest(extra) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+                if (extraQuests.isEmpty()) {
+                    item { Text("登録なし", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp)) }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             // --- 回復アクティビティ設定 ---
             Text("回復アクティビティ設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("休憩時間に提案される行動リストです。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(bottom = 8.dp))
@@ -182,6 +225,34 @@ fun SettingScreen(
             text = { Column { OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル") }); Spacer(modifier = Modifier.height(8.dp)); OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("詳細") }) } },
             confirmButton = { TextButton(onClick = { if (title.isNotBlank()) { onAddActivity(title, description); showAddDialog = false } }) { Text("追加") } },
             dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("キャンセル") } }
+        )
+    }
+    if (showExtraAddDialog) {
+        var title by remember { mutableStateOf("") }
+        var desc by remember { mutableStateOf("") }
+        var minutes by remember { mutableStateOf("15") }
+
+        AlertDialog(
+            onDismissRequest = { showExtraAddDialog = false },
+            title = { Text("ボーナスミッション追加") },
+            text = {
+                Column {
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル (例: 読書)") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("詳細 (任意)") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = minutes, onValueChange = { if(it.all{c->c.isDigit()}) minutes = it }, label = { Text("目安時間 (分)") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (title.isNotBlank()) {
+                        onAddExtraQuest(title, desc, minutes.toIntOrNull() ?: 15)
+                        showExtraAddDialog = false
+                    }
+                }) { Text("追加") }
+            },
+            dismissButton = { TextButton(onClick = { showExtraAddDialog = false }) { Text("キャンセル") } }
         )
     }
 }

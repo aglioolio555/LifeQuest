@@ -19,6 +19,7 @@ import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.data.local.entity.DailyQuestProgress
 import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.data.local.entity.ExtraQuest
 import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.model.StatisticsData
 import com.example.lifequest.utils.UsageStatsHelper
@@ -149,7 +150,16 @@ class MainViewModel(
 
     private val _popupQueue = MutableStateFlow<List<DailyQuestEvent>>(emptyList())
     val popupQueue: StateFlow<List<DailyQuestEvent>> = _popupQueue.asStateFlow()
+    // ★追加: 管理画面用のエキストラクエスト一覧
+    val extraQuests: StateFlow<List<ExtraQuest>> = repository.allExtraQuests
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ★追加: ホーム画面に提案するエキストラクエスト
+    private val _suggestedExtraQuest = MutableStateFlow<ExtraQuest?>(null)
+    val suggestedExtraQuest: StateFlow<ExtraQuest?> = _suggestedExtraQuest.asStateFlow()
+
+    // ★追加: 現在実行中のクエストがエキストラかどうか
+    var isBonusMissionRunning = false
     init {
         viewModelScope.launch {
             repository.userStatus.collect {
@@ -165,6 +175,19 @@ class MainViewModel(
                 if (topQuest != null && currentActiveQuestId != topQuest.id) {
                     currentActiveQuestId = topQuest.id
                     timerManager.initializeModeBasedOnQuest(topQuest.estimatedTime)
+                }
+            }
+        }
+        viewModelScope.launch {
+            questList.collect { activeQuests ->
+                if (activeQuests.isEmpty()) {
+                    // タスクがない時だけ抽選（まだ抽選していなければ）
+                    if (_suggestedExtraQuest.value == null) {
+                        _suggestedExtraQuest.value = repository.getRandomExtraQuest()
+                    }
+                } else {
+                    // タスクが復活したら提案をクリア
+                    _suggestedExtraQuest.value = null
                 }
             }
         }
@@ -285,29 +308,73 @@ class MainViewModel(
 
     // --- CRUD & Helper Wrappers ---
 
+    // ★修正: completeQuest を拡張してボーナスミッション対応
     fun completeQuest(quest: Quest) {
         timerManager.stopTimer()
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
 
-            // ★変更: 結果を受け取り、次回の予定があれば通知する
+            // 結果を受け取る
             val result = questCompletionService.completeQuest(quest, finalTime)
 
+            // 経験値付与
             if (result.totalExp > 0) grantExp(result.totalExp)
 
+            // 通常のデイリー/カテゴリポップアップ
             if (result.dailyQuestType != null) {
                 addToPopupQueue(result.dailyQuestType, 20)
             }
 
-            // ★追加: リピートクエストの次回予定通知
+            // ★追加: ボーナスミッションだった場合の特別処理
+            if (isBonusMissionRunning) {
+                // ボーナス達成ポップアップを表示
+                addToPopupQueue(DailyQuestType.BONUS, quest.expReward)
+                // 提案をリセット（次の抽選のため）
+                _suggestedExtraQuest.value = null
+                isBonusMissionRunning = false
+            }
+
             if (result.nextDueDate != null) {
                 val dateStr = formatDate(result.nextDueDate)
                 _toastEvent.send("次回は $dateStr に表示されます")
             }
         }
     }
+    // ★追加: ボーナスミッションを開始する
+    fun startBonusMission(extra: ExtraQuest, soundManager: SoundManager) {
+        isBonusMissionRunning = true
+        // ExtraQuestEntity -> 一時的な Quest オブジェクトに変換
+        // ID=0 で保存しないクエストとして扱う（完了時に repository.deleteQuest されても問題ない）
+        val tempQuest = Quest(
+            id = 0,
+            title = extra.title,
+            note = extra.description,
+            estimatedTime = extra.estimatedTime,
+            expReward = extra.expReward,
+            repeatMode = 0, // なし
+            category = 4 // その他
+        )
+        // タイマー開始
+        toggleTimer(tempQuest, soundManager)
+    }
 
-    // ... (残りのメソッドは変更なし) ...
+    // ★追加: エキストラクエスト管理
+    fun addExtraQuest(title: String, desc: String, minutes: Int) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            repository.insertExtraQuest(
+                ExtraQuest(
+                    title = title,
+                    description = desc,
+                    estimatedTime = minutes * 60 * 1000L
+                )
+            )
+        }
+    }
+
+    fun deleteExtraQuest(extra: ExtraQuest) = viewModelScope.launch {
+        repository.deleteExtraQuest(extra)
+    }
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = rewardCalculator.calculateExp(estimatedTime)

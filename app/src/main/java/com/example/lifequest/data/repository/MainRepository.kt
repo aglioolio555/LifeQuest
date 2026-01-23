@@ -15,7 +15,8 @@ class MainRepository(
     private val questDao: QuestDao,           // 変更
     private val questLogDao: QuestLogDao,     // 変更
     private val breakActivityDao: BreakActivityDao,
-    private val dailyQuestDao: DailyQuestDao
+    private val dailyQuestDao: DailyQuestDao,
+    private val extraQuestDao: ExtraQuestDao,
 ) {
 
     // --- User Status Data ---
@@ -114,5 +115,20 @@ class MainRepository(
     suspend fun exportDailyQuestsToCsv(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
         val allProgress = dailyQuestDao.getAllSync()
         CsvExporter(context).exportDailyProgress(uri, allProgress)
+    }
+
+    // --- Extra Quest Logic ---
+    val allExtraQuests: Flow<List<ExtraQuest>> = extraQuestDao.getAll()
+
+    suspend fun getRandomExtraQuest(): ExtraQuest? = withContext(Dispatchers.IO) {
+        extraQuestDao.getRandom()
+    }
+
+    suspend fun insertExtraQuest(quest: ExtraQuest) = withContext(Dispatchers.IO) {
+        extraQuestDao.insert(quest)
+    }
+
+    suspend fun deleteExtraQuest(quest: ExtraQuest) = withContext(Dispatchers.IO) {
+        extraQuestDao.delete(quest)
     }
 }
