@@ -119,6 +119,16 @@ fun QuestInputForm(
                     },
                     placeholder = { Text("サブタスク ${index + 1}") },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary, // シアン
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    shape = MaterialTheme.shapes.medium,
                     trailingIcon = {
                         IconButton(onClick = {
                             val newList = subtasks.toMutableList()

@@ -1,5 +1,6 @@
 package com.example.lifequest.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -8,14 +9,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
-import com.example.lifequest.utils.formatDateTime // 変更: formatDateTime を使用
+import com.example.lifequest.utils.formatDateTime
 import com.example.lifequest.utils.formatDuration
 
 @Composable
@@ -30,6 +33,7 @@ fun QuestItem(
 ) {
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
+    val haptic = LocalHapticFeedback.current // Haptic
 
     val isRunning = quest.lastStartTime != null
     val displayTime = if (isRunning) {
@@ -40,12 +44,15 @@ fun QuestItem(
 
     val categoryEnum = QuestCategory.fromInt(quest.category)
 
+    // Tech Noir Style: Translucent Glass
     val containerColor = if (isRunning) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            .compositeOver(MaterialTheme.colorScheme.surface)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
     } else {
-        MaterialTheme.colorScheme.surface
+        MaterialTheme.colorScheme.surface // Themeで透過設定済み
     }
+
+    val borderColor = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+    val borderWidth = if (isRunning) 1.dp else 0.5.dp
 
     val cardPadding = if (isLarge) 24.dp else 16.dp
     val titleStyle = if (isLarge) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleMedium
@@ -56,9 +63,14 @@ fun QuestItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isRunning) 6.dp else 2.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor)
+            .clickable(onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Feedback
+                onClick()
+            }),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // フラット（枠線で表現）
+        shape = MaterialTheme.shapes.medium, // 8dp
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(borderWidth, borderColor)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -67,12 +79,16 @@ fun QuestItem(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 開始ボタン
                 IconButton(
-                    onClick = onToggleTimer,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggleTimer()
+                    },
                     modifier = Modifier.size(iconSize).padding(end = 8.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (isRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        contentColor = if (isRunning) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                     )
                 ) {
                     if (isRunning) {
@@ -91,10 +107,14 @@ fun QuestItem(
                             tint = categoryEnum.color
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = quest.title, style = titleStyle)
+                        Text(
+                            text = quest.title,
+                            style = titleStyle,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                         if (quest.repeatMode > 0) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.Default.Refresh, "繰り返し", modifier = Modifier.size(if (isLarge) 20.dp else 16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.Refresh, "繰り返し", modifier = Modifier.size(if (isLarge) 20.dp else 16.dp), tint = MaterialTheme.colorScheme.secondary)
                         }
                     }
 
@@ -103,16 +123,17 @@ fun QuestItem(
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
                             text = formatDuration(displayTime),
-                            style = timeStyle,
+                            style = timeStyle.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), // Monospace
                             color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         if (quest.estimatedTime > 0) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "/ 目標 ${formatDuration(quest.estimatedTime)}",
+                                text = "/ ${formatDuration(quest.estimatedTime)}",
                                 style = if (isLarge) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.secondary
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                         }
                     }
@@ -121,18 +142,22 @@ fun QuestItem(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (quest.dueDate != null) {
-                            Icon(Icons.Default.DateRange, null, modifier = Modifier.size(if (isLarge) 18.dp else 14.dp), tint = MaterialTheme.colorScheme.tertiary)
+                            Icon(Icons.Default.DateRange, null, modifier = Modifier.size(if (isLarge) 18.dp else 14.dp), tint = MaterialTheme.colorScheme.secondary)
                             Text(
-                                text = " ${formatDateTime(quest.dueDate!!)} ", // ★時間付きフォーマットに変更
+                                text = " ${formatDateTime(quest.dueDate!!)} ",
                                 style = if (isLarge) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                         }
                     }
                 }
 
-                IconButton(onClick = onComplete, modifier = Modifier.size(completeIconSize)) {
-                    Icon(Icons.Default.Check, "完了", modifier = Modifier.size(completeIconSize), tint = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onComplete()
+                }, modifier = Modifier.size(completeIconSize)) {
+                    Icon(Icons.Default.CheckCircle, "完了", modifier = Modifier.size(completeIconSize), tint = MaterialTheme.colorScheme.primary)
                 }
             }
 
@@ -144,16 +169,31 @@ fun QuestItem(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSubtaskToggle(subtask) }
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSubtaskToggle(subtask)
+                                }
                                 .padding(vertical = 4.dp)
                         ) {
-                            Checkbox(checked = subtask.isCompleted, onCheckedChange = { onSubtaskToggle(subtask) }, modifier = Modifier.size(24.dp))
+                            Checkbox(
+                                checked = subtask.isCompleted,
+                                onCheckedChange = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSubtaskToggle(subtask)
+                                },
+                                modifier = Modifier.size(24.dp),
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = MaterialTheme.colorScheme.primary,
+                                    uncheckedColor = MaterialTheme.colorScheme.outline
+                                )
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
+                            val textColor = if (subtask.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
                             Text(
                                 text = subtask.title,
                                 style = MaterialTheme.typography.bodyMedium,
                                 textDecoration = if (subtask.isCompleted) TextDecoration.LineThrough else null,
-                                color = if (subtask.isCompleted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                                color = textColor
                             )
                         }
                     }

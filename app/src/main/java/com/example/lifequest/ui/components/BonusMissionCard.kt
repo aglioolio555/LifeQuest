@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.lifequest.data.local.entity.ExtraQuest
+import com.example.lifequest.ui.theme.* // Color.kt の定義をインポート
 
 @Composable
 fun BonusMissionCard(
@@ -39,9 +40,9 @@ fun BonusMissionCard(
 
     val gradientBrush = Brush.linearGradient(
         colors = listOf(
-            Color(0xFF9C27B0), // Purple
-            Color(0xFFE91E63), // Pink
-            Color(0xFFFF9800)  // Orange
+            BonusMissionGradientStart,  // 定数に変更
+            BonusMissionGradientMiddle, // 定数に変更
+            BonusMissionGradientEnd     // 定数に変更
         )
     )
 
@@ -52,7 +53,7 @@ fun BonusMissionCard(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         border = BorderStroke(2.dp, Brush.linearGradient(
-            colors = listOf(Color(0xFF9C27B0).copy(alpha = alpha), Color(0xFFFF9800).copy(alpha = alpha))
+            colors = listOf(BonusMissionGradientStart.copy(alpha = alpha), BonusMissionGradientEnd.copy(alpha = alpha))
         ))
     ) {
         Box(
@@ -68,9 +69,9 @@ fun BonusMissionCard(
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
-                        tint = Color(0xFFFFC107),
+                        tint = BonusMissionStar, // 定数に変更
                         modifier = Modifier.size(28.dp).graphicsLayer {
-                            scaleX = alpha // 星も少し脈動させる
+                            scaleX = alpha
                             scaleY = alpha
                         }
                     )
@@ -78,7 +79,7 @@ fun BonusMissionCard(
                     Text(
                         text = "BONUS MISSION",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            brush = gradientBrush // ★styleの中でbrushを指定する
+                            brush = gradientBrush
                         ),
                         fontWeight = FontWeight.Bold
                     )
@@ -86,13 +87,15 @@ fun BonusMissionCard(
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
-                        tint = Color(0xFFFFC107),
+                        tint = BonusMissionStar, // 定数に変更
                         modifier = Modifier.size(28.dp).graphicsLayer {
                             scaleX = alpha
                             scaleY = alpha
                         }
                     )
                 }
+
+                // ... (以下変更なし) ...
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -142,7 +145,7 @@ fun BonusMissionCard(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.Transparent
                     ),
-                    contentPadding = PaddingValues() // contentPaddingを0にしてBoxで背景を制御
+                    contentPadding = PaddingValues()
                 ) {
                     Box(
                         modifier = Modifier
@@ -154,7 +157,7 @@ fun BonusMissionCard(
                             "挑戦する",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White // Note: Color.White is standard, keeping as is
                         )
                     }
                 }

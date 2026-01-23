@@ -2,10 +2,13 @@ package com.example.lifequest.ui
 
 import android.content.Intent
 import android.provider.Settings
-import android.widget.Toast // 追加
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,50 +18,93 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.lifequest.MainActivity
 import com.example.lifequest.logic.SoundManager
 import com.example.lifequest.model.QuestWithSubtasks
+import com.example.lifequest.ui.dialogs.DailyQuestCompletionDialog
 import com.example.lifequest.ui.dialogs.QuestEditDialog
-import com.example.lifequest.ui.screens.FocusScreen
-import com.example.lifequest.ui.screens.QuestInputForm
-import com.example.lifequest.ui.screens.QuestListContent
-import com.example.lifequest.ui.screens.SettingScreen
-import com.example.lifequest.ui.screens.StatisticsScreen
+import com.example.lifequest.ui.screens.*
 import com.example.lifequest.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
-import com.example.lifequest.ui.dialogs.DailyQuestCompletionDialog
+
+// --- Tech Noir Animated Background ---
+@Composable
+fun TechNoirAnimatedBackground(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "gridAnimation")
+    val offsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 100f, // グリッドの間隔分移動
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "offsetY"
+    )
+
+    Canvas(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val gridSize = 100f // グリッドのサイズ
+        val width = size.width
+        val height = size.height
+        val gridColor = Color(0xFF40E0FF).copy(alpha = 0.05f) // 薄いシアン
+
+        // 縦線
+        for (x in 0..width.toInt() step gridSize.toInt()) {
+            drawLine(
+                color = gridColor,
+                start = Offset(x.toFloat(), 0f),
+                end = Offset(x.toFloat(), height),
+                strokeWidth = 1f
+            )
+        }
+
+        // 横線 (動く)
+        val startY = (offsetY % gridSize) - gridSize
+        for (y in startY.toInt()..height.toInt() step gridSize.toInt()) {
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, y.toFloat()),
+                end = Offset(width, y.toFloat()),
+                strokeWidth = 1f
+            )
+        }
+    }
+}
 
 enum class ExportType { LOGS, DAILY_QUESTS }
+
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
-    // 状態の監視
+    // ... (既存の状態取得コード) ...
     val status by viewModel.uiState.collectAsState()
-    val quests by viewModel.questList.collectAsState() // これは「今日」のクエストのみになる
-    val futureQuests by viewModel.futureQuestList.collectAsState() // ★追加: 未来のクエスト
+    val quests by viewModel.questList.collectAsState()
+    val futureQuests by viewModel.futureQuestList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
     val breakActivities by viewModel.breakActivities.collectAsState()
     val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
     val statistics by viewModel.statistics.collectAsState()
     val dailyProgress by viewModel.dailyProgress.collectAsState()
     val missingPermission by viewModel.missingPermission.collectAsState()
-
     val isInterrupted by viewModel.isInterrupted.collectAsState()
+    val suggestedExtraQuest by viewModel.suggestedExtraQuest.collectAsState()
+    val extraQuests by viewModel.extraQuests.collectAsState()
+    val popupQueue by viewModel.popupQueue.collectAsState()
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val activity = context as? MainActivity
-
     val soundManager = remember { SoundManager(context) }
     var exportType by remember { mutableStateOf<ExportType?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    // ★追加: Toastイベントの監視
     LaunchedEffect(Unit) {
         viewModel.toastEvent.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -67,9 +113,7 @@ fun MainScreen(viewModel: MainViewModel) {
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refreshPermissionCheck()
-            }
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissionCheck()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -78,15 +122,6 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    var previousLevel by remember { mutableIntStateOf(status.level) }
-    LaunchedEffect(status.level) {
-        if (status.level > previousLevel && previousLevel > 0) {
-            soundManager.playLevelUpSound()
-        }
-        previousLevel = status.level
-    }
-
-    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = System.currentTimeMillis()
@@ -101,65 +136,47 @@ fun MainScreen(viewModel: MainViewModel) {
             when (exportType) {
                 ExportType.LOGS -> viewModel.exportLogsToCsv(context, uri)
                 ExportType.DAILY_QUESTS -> viewModel.exportDailyQuestsToCsv(context, uri)
-                else -> {}
+                else -> { /* 何もしない */ }
             }
-            exportType = null // リセット
+
+            exportType = null
         }
     }
 
-    var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
-    val popupQueue by viewModel.popupQueue.collectAsState()
-
-    val suggestedExtraQuest by viewModel.suggestedExtraQuest.collectAsState()
-    val extraQuests by viewModel.extraQuests.collectAsState()
     Scaffold(
         bottomBar = {
             if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), // 少し透過
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
                     Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.label) },
                             label = { Text(screen.label) },
                             selected = currentScreen == screen,
-                            onClick = { currentScreen = screen }
+                            onClick = { currentScreen = screen },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize().imePadding()) {
-            when (currentScreen) {
-                Screen.HOME -> {
-                    Column {
-                        if (missingPermission) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                                modifier = Modifier.fillMaxWidth().padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("「就寝クエスト」機能には設定が必要です", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                        Text("使用状況へのアクセスを許可してください", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                    Button(
-                                        onClick = {
-                                            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                                            context.startActivity(intent)
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onErrorContainer)
-                                    ) {
-                                        Text("設定", color = MaterialTheme.colorScheme.errorContainer)
-                                    }
-                                }
-                            }
-                        }
+        // ★背景を適用
+        Box(modifier = Modifier.fillMaxSize()) {
+            TechNoirAnimatedBackground()
 
+            Box(modifier = Modifier.padding(innerPadding).fillMaxSize().imePadding()) {
+                when (currentScreen) {
+                    Screen.HOME -> {
+                        // ... (HomeScreen呼び出し)
                         HomeScreen(
                             status = status,
                             urgentQuestData = quests.firstOrNull(),
@@ -187,127 +204,102 @@ fun MainScreen(viewModel: MainViewModel) {
                             onSubtaskToggle = { viewModel.toggleSubtask(it) },
                         )
                     }
-                }
-                Screen.LIST -> {
-                    QuestListContent(
-                        quests = quests,
-                        futureQuests = futureQuests, // ★追加: 未来のクエストも渡す
-                        dailyProgress = dailyProgress,
-                        currentTime = currentTime,
-                        onEdit = { editingQuestData = it },
-                        onToggleTimer = { quest ->
-                            viewModel.toggleTimer(quest, soundManager)
-                            activity?.startPinning()
-                            currentScreen = Screen.FOCUS
-                        },
-                        onComplete = { quest ->
-                            soundManager.playCoinSound()
-                            viewModel.completeQuest(quest)
-                        },
-                        onDelete = { viewModel.deleteQuest(it) },
-                        onSubtaskToggle = { viewModel.toggleSubtask(it) }
-                    )
-                }
-                Screen.ADD -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text("新規クエスト受注", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(bottom = 16.dp))
-                        QuestInputForm(
-                            onAddQuest = { title, note, date, repeat, category, time, subtasks ->
-                                viewModel.addQuest(
-                                    title,
-                                    note,
-                                    date,
-                                    repeat,
-                                    category,
-                                    time,
-                                    subtasks
-                                )
-                                currentScreen = Screen.LIST
-                            }
-                        )
-                        Spacer(modifier = Modifier.height(32.dp))
-                    }
-                }
-                Screen.FOCUS -> {
-                    val activeQuest = quests.firstOrNull()
-                    if (activeQuest != null) {
-                        FocusScreen(
-                            questWithSubtasks = activeQuest,
-                            timerState = timerState,
-                            currentBreakActivity = currentBreakActivity,
+                    Screen.LIST -> {
+                        QuestListContent(
+                            quests = quests,
+                            futureQuests = futureQuests,
+                            dailyProgress = dailyProgress,
                             currentTime = currentTime,
-
-                            isInterrupted = isInterrupted,
-                            onResumeFromInterruption = { viewModel.resumeFromInterruption() },
-
-                            onToggleTimer = {
-                                viewModel.toggleTimer(
-                                    activeQuest.quest,
-                                    soundManager
-                                )
+                            onEdit = { editingQuestData = it },
+                            onToggleTimer = { quest ->
+                                viewModel.toggleTimer(quest, soundManager)
+                                activity?.startPinning()
+                                currentScreen = Screen.FOCUS
                             },
-                            onModeToggle = { viewModel.toggleTimerMode() },
-                            onComplete = {
+                            onComplete = { quest ->
                                 soundManager.playCoinSound()
-                                viewModel.completeQuest(activeQuest.quest)
-                                currentScreen = Screen.HOME
+                                viewModel.completeQuest(quest)
                             },
-                            onSubtaskToggle = { viewModel.toggleSubtask(it) },
-                            onExit = {
-                                if (timerState.isRunning) {
-                                    viewModel.toggleTimer(activeQuest.quest, soundManager)
-                                }
-                                currentScreen = Screen.HOME
-                            },
-                            onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
-                            onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) }
+                            onDelete = { viewModel.deleteQuest(it) },
+                            onSubtaskToggle = { viewModel.toggleSubtask(it) }
                         )
-                    } else {
-                        currentScreen = Screen.HOME
                     }
-                }
-                Screen.STATISTICS -> {
-                    StatisticsScreen(statistics = statistics)
-                }
-                Screen.SETTINGS -> {
-                    SettingScreen(
-                        activities = breakActivities,
-                        userStatus = status,
-                        onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
-                        onDeleteActivity = { viewModel.deleteBreakActivity(it) },
-                        onUpdateTargetTimes = { wh, wm, bh, bm ->
-                            viewModel.updateTargetTimes(wh, wm, bh, bm)
-                        },
-                        onExportQuestLogs = {
-                            exportType = ExportType.LOGS
-                            exportLauncher.launch("quest_logs_backup.csv")
-                        },
-                        onExportDailyQuests = {
-                            exportType = ExportType.DAILY_QUESTS
-                            exportLauncher.launch("daily_quests_backup.csv")
-                        },
-                        extraQuests = extraQuests,
-                        onAddExtraQuest = { title, desc, minutes ->
-                            viewModel.addExtraQuest(title, desc, minutes)
-                        },
-                        onDeleteExtraQuest = { extra ->
-                            viewModel.deleteExtraQuest(extra)
-                        },
-                        onBack = { currentScreen = Screen.HOME }
-                    )
-                    BackHandler {
-                        currentScreen = Screen.HOME
+                    Screen.ADD -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text("NEW QUEST_ENTRY", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 16.dp))
+                            QuestInputForm(
+                                onAddQuest = { title, note, date, repeat, category, time, subtasks ->
+                                    viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
+                                    currentScreen = Screen.LIST
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(32.dp))
+                        }
+                    }
+                    // ... (FOCUS, STATISTICS, SETTINGS も同様に) ...
+                    Screen.FOCUS -> {
+                        val activeQuest = quests.firstOrNull()
+                        if (activeQuest != null) {
+                            FocusScreen(
+                                questWithSubtasks = activeQuest,
+                                timerState = timerState,
+                                currentBreakActivity = currentBreakActivity,
+                                currentTime = currentTime,
+                                isInterrupted = isInterrupted,
+                                onResumeFromInterruption = { viewModel.resumeFromInterruption() },
+                                onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
+                                onModeToggle = { viewModel.toggleTimerMode() },
+                                onComplete = {
+                                    soundManager.playCoinSound()
+                                    viewModel.completeQuest(activeQuest.quest)
+                                    currentScreen = Screen.HOME
+                                },
+                                onSubtaskToggle = { viewModel.toggleSubtask(it) },
+                                onExit = {
+                                    if (timerState.isRunning) viewModel.toggleTimer(activeQuest.quest, soundManager)
+                                    currentScreen = Screen.HOME
+                                },
+                                onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
+                                onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) }
+                            )
+                        } else {
+                            currentScreen = Screen.HOME
+                        }
+                    }
+                    Screen.STATISTICS -> StatisticsScreen(statistics = statistics)
+                    Screen.SETTINGS -> {
+                        SettingScreen(
+                            activities = breakActivities,
+                            userStatus = status,
+                            onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
+                            onDeleteActivity = { viewModel.deleteBreakActivity(it) },
+                            onUpdateTargetTimes = { wh, wm, bh, bm -> viewModel.updateTargetTimes(wh, wm, bh, bm) },
+                            onExportQuestLogs = {
+                                exportType = ExportType.LOGS
+                                exportLauncher.launch("quest_logs_backup.csv")
+                            },
+                            onExportDailyQuests = {
+                                exportType = ExportType.DAILY_QUESTS
+                                exportLauncher.launch("daily_quests_backup.csv")
+                            },
+                            extraQuests = extraQuests,
+                            onAddExtraQuest = { title, desc, minutes -> viewModel.addExtraQuest(title, desc, minutes) },
+                            onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
+                            onBack = { currentScreen = Screen.HOME }
+                        )
+                        BackHandler { currentScreen = Screen.HOME }
                     }
                 }
             }
         }
     }
 
+    // ... (Popup, Dialog handling) ...
     if (popupQueue.isNotEmpty()) {
         val currentEvent = popupQueue.first()
         DailyQuestCompletionDialog(
@@ -328,12 +320,8 @@ fun MainScreen(viewModel: MainViewModel) {
                 viewModel.updateQuest(updatedQuest)
                 editingQuestData = null
             },
-            onAddSubtask = { title ->
-                viewModel.addSubtask(editingQuestData!!.quest.id, title)
-            },
-            onDeleteSubtask = { subtask ->
-                viewModel.deleteSubtask(subtask)
-            }
+            onAddSubtask = { title -> viewModel.addSubtask(editingQuestData!!.quest.id, title) },
+            onDeleteSubtask = { subtask -> viewModel.deleteSubtask(subtask) }
         )
     }
 }

@@ -5,25 +5,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.lifequest.ui.theme.*
 
 //デイリークエストの種類定義
+// デイリークエストの種類定義
 enum class DailyQuestType(val title: String, val message: String, val icon: ImageVector, val color: Color) {
-    WAKE_UP("早起き達成", "素晴らしい一日の始まりです！", Icons.Default.WbSunny, Color(0xFFFFA000)), // オレンジ
-    BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, Color(0xFF3F51B5)), // インディゴ
-    FOCUS("集中リミット突破", "驚異的な集中力です！", Icons.Default.Timer, Color(0xFFF44336)),    // 赤
-    BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, Color(0xFF4CAF50)), // 緑
-    BONUS("ボーナスミッション達成", "自己研鑽への挑戦、素晴らしい！", Icons.Default.Star, Color(0xFF9C27B0));
+    WAKE_UP("早起き達成", "素晴らしい一日の始まりです！", Icons.Default.WbSunny, DailyQuestWakeUp),
+    BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, DailyQuestBedTime),
+    FOCUS("集中リミット突破", "驚異的な集中力です！", Icons.Default.Timer, DailyQuestFocus),
+    BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, DailyQuestBalance),
+    BONUS("ボーナスミッション達成", "自己研鑽への挑戦、素晴らしい！", Icons.Default.Star, DailyQuestBonus);
 }
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {
-    LIFE(0, "生活", Icons.Default.Home, Color(0xFF4CAF50)),       // 緑
-    WORK(1, "仕事/学習", Icons.Default.Edit, Color(0xFF2196F3)),   // 青
-    HEALTH(2, "健康", Icons.Default.Favorite, Color(0xFFE91E63)), // ピンク
-    HOBBY(3, "趣味", Icons.Default.Star, Color(0xFFFFC107)),      // 黄色
-    OTHER(4, "その他", Icons.Default.Face, Color(0xFF9E9E9E));    // グレー
+    WORK(0, "仕事", Icons.Default.Work, QuestCategoryWork),
+    HEALTH(1, "健康", Icons.Default.Favorite, QuestCategoryHealth),
+    LEARNING(2, "学習", Icons.Default.School, QuestCategoryLearn),
+    HOBBY(3, "趣味", Icons.Default.Palette, QuestCategoryHobby),
+    OTHER(4, "その他", Icons.Default.MoreHoriz, QuestCategoryOther);
 
     companion object {
-        fun fromInt(value: Int) = entries.find { it.id == value } ?: OTHER
+        fun fromInt(id: Int): QuestCategory = entries.find { it.id == id } ?: OTHER
     }
 }
 
