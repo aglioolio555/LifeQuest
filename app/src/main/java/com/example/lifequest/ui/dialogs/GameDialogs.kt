@@ -24,9 +24,111 @@ import com.example.lifequest.utils.combineDateAndTime // 追加
 import com.example.lifequest.utils.extractTime // 追加
 import com.example.lifequest.utils.formatDate
 import com.example.lifequest.utils.formatTime // 追加
+import androidx.compose.ui.graphics.Color
 
 // ... (LevelUpDialog, QuestDetailsDialog, GiveUpConfirmDialog は変更なし) ...
+// ★追加: 画面固定（ピン留め）の提案ダイアログ
+@Composable
+fun PinningConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("不退転の集中モード") },
+        text = {
+            Text(
+                "集中を最大化するために、画面固定機能（ピン留め）を使用しますか？\n\n" +
+                        "※固定中はホームボタンや他のアプリへの切り替えが制限され、物理的な「聖域」が作られます。"
+            )
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("固定して開始")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("通常モードで開始")
+            }
+        }
+    )
+}
 
+// ★追加: 中断からの復帰（おかえり）ダイアログ
+@Composable
+fun WelcomeBackDialog(
+    onResume: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {}, // 外側タップで閉じさせない
+        title = { Text("⚠️ 集中が中断されました") },
+        text = {
+            Column {
+                Text(
+                    "先程はクエストから離脱してしまいました。\n" +
+                            "しかし、まだ挽回できます。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "「一度始めたことは最後までやり遂げる。」",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("クエストを再開しますか？", style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onResume,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("再開する！")
+            }
+        }
+    )
+}
+
+// ★修正: 既存のGiveUpConfirmDialogの文言と色を強化
+@Composable
+fun GiveUpConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        containerColor = MaterialTheme.colorScheme.errorContainer, // 警告色背景
+        titleContentColor = MaterialTheme.colorScheme.onErrorContainer,
+        textContentColor = MaterialTheme.colorScheme.onErrorContainer,
+        onDismissRequest = onDismiss,
+        title = { Text("クエストを放棄しますか？") },
+        text = {
+            Text(
+                "今中断すると、ここまでの積み重ねが途切れてしまいます。\n\n" +
+                        "「あと少し」の踏ん張りが、自分を変える一歩になります。\n" +
+                        "本当に冒険を諦めますか？"
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("断念する")
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("集中を続ける！")
+            }
+        }
+    )
+}
 @Composable
 fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
     AlertDialog(
@@ -87,30 +189,30 @@ fun QuestDetailsDialog(
     )
 }
 
-@Composable
-fun GiveUpConfirmDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("集中を中断しますか？") },
-        text = { Text("今中断すると、このセッションのフローが途切れてしまいます。\n\n本当に終了しますか？") },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("中断する")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("続ける！")
-            }
-        }
-    )
-}
+//@Composable
+//fun GiveUpConfirmDialog(
+//    onDismiss: () -> Unit,
+//    onConfirm: () -> Unit
+//) {
+//    AlertDialog(
+//        onDismissRequest = onDismiss,
+//        title = { Text("集中を中断しますか？") },
+//        text = { Text("今中断すると、このセッションのフローが途切れてしまいます。\n\n本当に終了しますか？") },
+//        confirmButton = {
+//            TextButton(
+//                onClick = onConfirm,
+//                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+//            ) {
+//                Text("中断する")
+//            }
+//        },
+//        dismissButton = {
+//            Button(onClick = onDismiss) {
+//                Text("続ける！")
+//            }
+//        }
+//    )
+//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

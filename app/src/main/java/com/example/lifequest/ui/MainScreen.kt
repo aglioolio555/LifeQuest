@@ -44,6 +44,8 @@ fun MainScreen(viewModel: MainViewModel) {
     val dailyProgress by viewModel.dailyProgress.collectAsState()
     val missingPermission by viewModel.missingPermission.collectAsState()
 
+    val isInterrupted by viewModel.isInterrupted.collectAsState()
+
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val soundManager = remember { SoundManager(context) }
@@ -219,6 +221,10 @@ fun MainScreen(viewModel: MainViewModel) {
                             timerState = timerState,
                             currentBreakActivity = currentBreakActivity, //
                             currentTime = currentTime,
+
+                            isInterrupted = isInterrupted,
+                            onResumeFromInterruption = { viewModel.resumeFromInterruption() },
+
                             onToggleTimer = {
                                 viewModel.toggleTimer(
                                     activeQuest.quest,

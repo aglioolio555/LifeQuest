@@ -23,6 +23,7 @@ import com.example.lifequest.utils.UsageStatsHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.example.lifequest.logic.LifeQuestNotificationManager
 
 class MainViewModel(
     private val repository: MainRepository,
@@ -285,5 +286,33 @@ class MainViewModel(
         var time = quest.accumulatedTime
         if (quest.lastStartTime != null) time += (System.currentTimeMillis() - quest.lastStartTime)
         return time
+    }
+    // ★追加: 中断状態の管理
+    private val _isInterrupted = MutableStateFlow(false)
+    val isInterrupted: StateFlow<Boolean> = _isInterrupted.asStateFlow()
+
+    // ★追加: 通知マネージャー (MainActivity等からセットされる想定、またはDI)
+    var notificationManager: LifeQuestNotificationManager? = null
+
+    // ★追加: アプリがバックグラウンドに回った時の処理
+    fun onAppBackgrounded() {
+        if (timerState.value.isRunning) {
+            _isInterrupted.value = true
+            // 現在のクエスト名を取得して通知
+            val currentQuest = questList.value.firstOrNull()?.quest
+            val title = currentQuest?.title ?: "クエスト"
+            notificationManager?.showReturnNotification(title)
+        }
+    }
+
+    // ★追加: アプリがフォアグラウンドに戻った時の処理
+    fun onAppForegrounded() {
+        notificationManager?.cancelNotification()
+        // ここではフラグをリセットせず、UI側でダイアログを表示してユーザーが「再開」を押したらリセットする
+    }
+
+    // ★追加: 中断状態からの復帰（ダイアログでの承認時）
+    fun resumeFromInterruption() {
+        _isInterrupted.value = false
     }
 }

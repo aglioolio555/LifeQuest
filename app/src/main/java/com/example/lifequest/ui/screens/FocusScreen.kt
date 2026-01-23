@@ -25,6 +25,10 @@ import com.example.lifequest.logic.TimerState
 import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog
 import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration
+import androidx.compose.ui.platform.LocalContext // 追加
+import com.example.lifequest.MainActivity // 追加
+import com.example.lifequest.ui.dialogs.PinningConfirmDialog // 追加
+import com.example.lifequest.ui.dialogs.WelcomeBackDialog
 
 @Composable
 fun FocusScreen(
@@ -32,6 +36,8 @@ fun FocusScreen(
     timerState: TimerState,
     currentBreakActivity: BreakActivity?, // ★追加
     currentTime: Long,
+    isInterrupted: Boolean = false,
+    onResumeFromInterruption: () -> Unit = {},
     onToggleTimer: () -> Unit,
     onModeToggle: () -> Unit,
     onComplete: () -> Unit,
@@ -57,7 +63,48 @@ fun FocusScreen(
     val targetColor = if (timerState.isBreak) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
     val animatedColor by animateColorAsState(targetColor, label = "focusColor")
     val backgroundColor = animatedColor.copy(alpha = 0.05f)
+    val context = LocalContext.current
+    val activity = context as? MainActivity
 
+    // ★追加: ピン留め提案ダイアログの表示状態
+    // タイマーが走っておらず、休憩中でもない、最初の開始時に表示したい
+    var showPinningDialog by remember { mutableStateOf(false) }
+
+    // タイマー開始ボタンが押されたときのラッパー
+    val handleStartTimer = {
+        if (!timerState.isRunning && !timerState.isBreak) {
+            // タイマー開始前ならピン留めを提案
+            showPinningDialog = true
+        } else {
+            onToggleTimer()
+        }
+    }
+
+    // ★追加: 中断からの復帰ダイアログ表示
+    if (isInterrupted) {
+        WelcomeBackDialog(onResume = onResumeFromInterruption)
+    }
+
+    // ★追加: ピン留め提案ダイアログ
+    if (showPinningDialog) {
+        PinningConfirmDialog(
+            onDismiss = {
+                showPinningDialog = false
+                onToggleTimer() // ピン留めなしで開始
+            },
+            onConfirm = {
+                showPinningDialog = false
+                activity?.startPinning() // ピン留め実行
+                onToggleTimer() // 開始
+            }
+        )
+    }
+
+    // 既存の onExit ラッパー (固定解除を追加)
+    val handleExit = {
+        activity?.stopPinning() // 画面固定を解除
+        onExit()
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -185,7 +232,7 @@ fun FocusScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledIconButton(
-                        onClick = onToggleTimer,
+                        onClick = handleStartTimer,
                         modifier = Modifier.size(80.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
                     ) {
@@ -225,7 +272,7 @@ fun FocusScreen(
             onDismiss = { showGiveUpDialog = false },
             onConfirm = {
                 showGiveUpDialog = false
-                onExit()
+                handleExit()
             }
         )
     }
