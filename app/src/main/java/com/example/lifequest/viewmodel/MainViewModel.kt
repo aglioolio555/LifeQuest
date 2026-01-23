@@ -84,7 +84,6 @@ class MainViewModel(
         quests.filter { item ->
             val q = item.quest
             // リピートなし(0) は常に表示。リピートありなら期限チェック。
-            // ※期限なし(null)のリピートクエストというケースがあるなら考慮必要だが、通常リピートは期限あり前提
             q.repeatMode == RepeatMode.NONE.value || (q.dueDate ?: 0L) <= endOfToday
         }
     }.stateIn(
@@ -160,6 +159,11 @@ class MainViewModel(
 
     // ★追加: 現在実行中のクエストがエキストラかどうか
     var isBonusMissionRunning = false
+
+    // ★追加: ボーナスミッション開始処理中のロード状態
+    private val _isBonusMissionLoading = MutableStateFlow(false)
+    val isBonusMissionLoading: StateFlow<Boolean> = _isBonusMissionLoading.asStateFlow()
+
     init {
         viewModelScope.launch {
             repository.userStatus.collect {
@@ -340,22 +344,45 @@ class MainViewModel(
             }
         }
     }
-    // ★追加: ボーナスミッションを開始する
+
+    // ★修正: ボーナスミッションを開始する（正規クエスト変換＆タイマー開始）
     fun startBonusMission(extra: ExtraQuest, soundManager: SoundManager) {
-        isBonusMissionRunning = true
-        // ExtraQuestEntity -> 一時的な Quest オブジェクトに変換
-        // ID=0 で保存しないクエストとして扱う（完了時に repository.deleteQuest されても問題ない）
-        val tempQuest = Quest(
-            id = 0,
-            title = extra.title,
-            note = extra.description,
-            estimatedTime = extra.estimatedTime,
-            expReward = extra.expReward,
-            repeatMode = 0, // なし
-            category = 4 // その他
-        )
-        // タイマー開始
-        toggleTimer(tempQuest, soundManager)
+        viewModelScope.launch {
+            _isBonusMissionLoading.value = true // ロード開始
+            isBonusMissionRunning = true
+
+            // 1. ExtraQuest から通常の Quest データを作成
+            // IDは自動生成させるため0
+            val newQuest = Quest(
+                title = extra.title,
+                note = extra.description,
+                expReward = extra.expReward,
+                estimatedTime = extra.estimatedTime,
+                repeatMode = 0, // リピートなし
+                category = 4,   // その他カテゴリ
+                dueDate = System.currentTimeMillis() // 今日
+            )
+
+            // 2. DBに保存し、発行されたIDを取得
+            val newQuestId = repository.insertQuest(newQuest, emptyList())
+
+
+            // 4. IDを持った完全なクエストオブジェクトを作成してタイマー開始
+            val insertedQuest = newQuest.copy(id = newQuestId)
+
+            // 既存タイマー停止＆新クエストで開始
+            if (timerState.value.isRunning) {
+                timerManager.stopTimer()
+            }
+            toggleTimer(insertedQuest, soundManager)
+
+            // 提案用変数をクリア
+            _suggestedExtraQuest.value = null
+
+            // DB反映のラグを考慮して少し待機してからロード解除
+            delay(200)
+            _isBonusMissionLoading.value = false
+        }
     }
 
     // ★追加: エキストラクエスト管理

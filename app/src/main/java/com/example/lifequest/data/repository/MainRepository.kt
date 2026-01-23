@@ -72,13 +72,15 @@ class MainRepository(
     }
 
     // --- Quest Logic ---
-    suspend fun insertQuest(quest: Quest, subtasks: List<String>) = withContext(Dispatchers.IO) {
+    // ★修正: 生成されたクエストIDを返すように変更
+    suspend fun insertQuest(quest: Quest, subtasks: List<String>): Int = withContext(Dispatchers.IO) {
         val questId = questDao.insertQuest(quest).toInt()
         subtasks.forEach { title ->
             if (title.isNotBlank()) {
                 questDao.insertSubtask(Subtask(questId = questId, title = title))
             }
         }
+        questId // IDを返す
     }
 
     suspend fun updateQuest(quest: Quest) = withContext(Dispatchers.IO) {

@@ -96,6 +96,9 @@ fun MainScreen(viewModel: MainViewModel) {
     val extraQuests by viewModel.extraQuests.collectAsState()
     val popupQueue by viewModel.popupQueue.collectAsState()
 
+    // ★追加: ボーナスミッションのロード状態
+    val isBonusMissionLoading by viewModel.isBonusMissionLoading.collectAsState()
+
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val activity = context as? MainActivity
@@ -267,6 +270,14 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
                                 onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) }
                             )
+                        } else if (isBonusMissionLoading) {
+                            // ★追加: ボーナスミッション準備中のローディング表示
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            }
                         } else {
                             currentScreen = Screen.HOME
                         }
