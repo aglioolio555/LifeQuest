@@ -20,6 +20,7 @@ import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
 import com.example.lifequest.utils.formatDateTime
 import com.example.lifequest.utils.formatDuration
+import com.example.lifequest.logic.LocalSoundManager
 
 @Composable
 fun QuestItem(
@@ -60,11 +61,14 @@ fun QuestItem(
     val iconSize = if (isLarge) 48.dp else 40.dp
     val completeIconSize = if (isLarge) 36.dp else 28.dp
 
+    val soundManager = LocalSoundManager.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Feedback
+                soundManager.playClick()
                 onClick()
             }),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // フラット（枠線で表現）
@@ -83,6 +87,7 @@ fun QuestItem(
                 IconButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        soundManager.playTimerStart()
                         onToggleTimer()
                     },
                     modifier = Modifier.size(iconSize).padding(end = 8.dp),
@@ -155,6 +160,7 @@ fun QuestItem(
 
                 IconButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    soundManager.playQuestComplete()
                     onComplete()
                 }, modifier = Modifier.size(completeIconSize)) {
                     Icon(Icons.Default.CheckCircle, "完了", modifier = Modifier.size(completeIconSize), tint = MaterialTheme.colorScheme.primary)

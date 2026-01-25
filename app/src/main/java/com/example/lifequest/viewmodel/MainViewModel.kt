@@ -265,8 +265,10 @@ class MainViewModel(
         if (timerState.value.isRunning) {
             timerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
+            soundManager?.playClick()
         } else {
             updateQuestStartTime(quest)
+            soundManager?.playTimerStart()
             timerManager.startTimer(
                 scope = viewModelScope,
                 onFinish = { handleTimerFinish(quest, soundManager) }
