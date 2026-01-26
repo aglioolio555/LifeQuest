@@ -200,7 +200,7 @@ fun DailyQuestSection(progress: DailyQuestProgress) {
                     modifier = Modifier.weight(1f)
                 )
                 DailyMissionItem(
-                    title = "早起き",
+                    title = "早寝",
                     isCleared = progress.isBedTimeCleared,
                     icon = Icons.Default.Bedtime,
                     modifier = Modifier.weight(1f)

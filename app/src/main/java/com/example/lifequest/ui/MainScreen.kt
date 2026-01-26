@@ -235,21 +235,12 @@ fun MainScreen(viewModel: MainViewModel) {
                             )
                         }
                         Screen.ADD -> {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                Text("NEW QUEST_ENTRY", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 16.dp))
-                                QuestInputForm(
-                                    onAddQuest = { title, note, date, repeat, category, time, subtasks ->
-                                        viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
-                                        currentScreen = Screen.LIST
-                                    }
-                                )
-                                Spacer(modifier = Modifier.height(32.dp))
-                            }
+                            AddQuestScreen(
+                                onAddQuest = { title, note, date, repeat, category, time, subtasks ->
+                                    viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
+                                    currentScreen = Screen.LIST
+                                }
+                            )
                         }
                         // ... (FOCUS, STATISTICS, SETTINGS も同様に) ...
                         Screen.FOCUS -> {
