@@ -176,12 +176,12 @@ fun MainScreen(viewModel: MainViewModel) {
     CompositionLocalProvider(LocalSoundManager provides soundManager) {
         Scaffold(
             bottomBar = {
-                if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS) {
+                if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS && currentScreen != Screen.WHITELIST) {
                     NavigationBar(
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), // 少し透過
                         contentColor = MaterialTheme.colorScheme.primary
                     ) {
-                        Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }
+                        Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS && it != Screen.WHITELIST }
                             .forEach { screen ->
                                 NavigationBarItem(
                                     icon = { Icon(screen.icon, contentDescription = screen.label) },
@@ -368,6 +368,10 @@ fun MainScreen(viewModel: MainViewModel) {
                                     )
                                 },
                                 onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
+                                onNavigateToWhitelist = {
+                                    soundManager.playClick()
+                                    currentScreen = Screen.WHITELIST
+                                },
                                 onBack = {
                                     soundManager.playClick()
                                     currentScreen = Screen.HOME
@@ -376,6 +380,19 @@ fun MainScreen(viewModel: MainViewModel) {
                             BackHandler {
                                 soundManager.playClick()
                                 currentScreen = Screen.HOME
+                            }
+                        }
+                        Screen.WHITELIST -> {
+                            AppWhitelistScreen(
+                                viewModel = viewModel,
+                                onBack = {
+                                    soundManager.playClick()
+                                    currentScreen = Screen.SETTINGS
+                                }
+                            )
+                            BackHandler {
+                                soundManager.playClick()
+                                currentScreen = Screen.SETTINGS
                             }
                         }
                     }

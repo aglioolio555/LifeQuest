@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Share
@@ -36,6 +38,7 @@ fun SettingScreen(
     extraQuests: List<ExtraQuest> = emptyList(),
     onAddExtraQuest: (String, String, Int) -> Unit = {_,_,_ ->},
     onDeleteExtraQuest: (ExtraQuest) -> Unit = {},
+    onNavigateToWhitelist: () -> Unit,
     onBack: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -211,12 +214,31 @@ fun SettingScreen(
                 }
             }
 
+            //AllowedAppSetting
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .soundClickable { onNavigateToWhitelist() }
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("アプリホワイトリスト設定", style = MaterialTheme.typography.titleMedium)
+                        Text("集中モード中に使用を許可するアプリ", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Icon(Icons.Default.ArrowForward, contentDescription = null)
+                }
+            }
+
             // 下部の余白確保
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 
-    // ... (ダイアログ部分は変更なし) ...
     if (showWakeUpPicker) {
         GameTimePickerDialog(
             initialHour = userStatus.targetWakeUpHour,

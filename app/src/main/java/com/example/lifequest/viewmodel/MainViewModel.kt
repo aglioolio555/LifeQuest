@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.lifequest.DailyQuestType
 import com.example.lifequest.FocusMode
 import com.example.lifequest.RepeatMode // 追加
+import com.example.lifequest.data.local.entity.AllowedApp
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.logic.FocusTimerManager
 import com.example.lifequest.logic.SoundManager
@@ -515,7 +516,7 @@ class MainViewModel(
         _isInterrupted.value = false
     }
 
-    // ★追加: 音声再生イベント通知用チャンネル
+    //音声再生イベント通知用チャンネル
     private val _soundEvent = Channel<SoundType>(Channel.BUFFERED)
     val soundEvent = _soundEvent.receiveAsFlow()
 
@@ -524,5 +525,16 @@ class MainViewModel(
         viewModelScope.launch {
             _soundEvent.send(type)
         }
+    }
+
+    val allowedApps: StateFlow<List<AllowedApp>> = repository.getAllAllowedApps()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addAllowedApp(app: AllowedApp) = viewModelScope.launch {
+        repository.insertAllowedApp(app)
+    }
+
+    fun removeAllowedApp(app: AllowedApp) = viewModelScope.launch {
+        repository.deleteAllowedApp(app)
     }
 }

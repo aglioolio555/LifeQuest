@@ -2,6 +2,10 @@ package com.example.lifequest.data.repository
 
 import android.content.Context
 import android.net.Uri
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
 import com.example.lifequest.utils.CsvExporter
 import com.example.lifequest.data.local.dao.*
 import com.example.lifequest.data.local.entity.*
@@ -17,6 +21,7 @@ class MainRepository(
     private val breakActivityDao: BreakActivityDao,
     private val dailyQuestDao: DailyQuestDao,
     private val extraQuestDao: ExtraQuestDao,
+    private val allowedAppDao: AllowedAppDao
 ) {
 
     // --- User Status Data ---
@@ -132,5 +137,20 @@ class MainRepository(
 
     suspend fun deleteExtraQuest(quest: ExtraQuest) = withContext(Dispatchers.IO) {
         extraQuestDao.delete(quest)
+    }
+
+    // --- Allowed App Logic (ホワイトリスト機能) ---
+    fun getAllAllowedApps(): Flow<List<AllowedApp>> = allowedAppDao.getAllAllowedApps()
+
+    suspend fun insertAllowedApp(app: AllowedApp) = withContext(Dispatchers.IO) {
+        allowedAppDao.insert(app)
+    }
+
+    suspend fun deleteAllowedApp(app: AllowedApp) = withContext(Dispatchers.IO) {
+        allowedAppDao.delete(app)
+    }
+
+    suspend fun getAllAllowedPackageNames(): List<String> = withContext(Dispatchers.IO) {
+        allowedAppDao.getAllPackageNames()
     }
 }

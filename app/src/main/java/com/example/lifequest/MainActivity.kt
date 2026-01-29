@@ -23,14 +23,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val db = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java, "lifequest-db"
-        )
-            .fallbackToDestructiveMigration()
-            .build()
+        // シングルトンインスタンスを取得するように変更
+        val db = AppDatabase.getDatabase(applicationContext)
 
-        val repository = MainRepository(db.userStatusDao(), questDao = db.questDao(), questLogDao = db.questLogDao(), db.breakActivityDao(), db.dailyQuestDao(),db.extraQuestDao())
+        val repository = MainRepository(db.userStatusDao(), questDao = db.questDao(), questLogDao = db.questLogDao(), db.breakActivityDao(), db.dailyQuestDao(),db.extraQuestDao(), db.allowedAppDao())
 
         val usageStatsHelper = UsageStatsHelper(applicationContext)
 

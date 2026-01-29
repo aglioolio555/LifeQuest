@@ -62,4 +62,5 @@ dependencies {
     ksp("androidx.room:room-compiler:$room_version") // アノテーション処理
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+//    implementation("javax.inject:javax.inject:1")
 }

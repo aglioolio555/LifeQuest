@@ -15,5 +15,7 @@ enum class Screen(val label: String, val icon: ImageVector) {
     ADD("受注", Icons.Default.Add),
     FOCUS("集中", Icons.Default.PlayArrow),
     STATISTICS("記録", Icons.Default.DateRange),
-    SETTINGS("設定", Icons.Default.Settings)
+    SETTINGS("設定", Icons.Default.Settings),
+    WHITELIST("ホワイトリスト", Icons.Default.List)
+
 }
