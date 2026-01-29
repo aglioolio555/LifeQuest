@@ -10,6 +10,9 @@ import com.example.lifequest.R
 enum class SoundType {
     LEVEL_UP,
     QUEST_COMPLETE,
+    BONUS,
+    REQUEST,
+    DELETE,
     TIMER_START,
     TIMER_FINISH,
     TIMER_PAUSE,
@@ -40,14 +43,15 @@ class SoundManager(context: Context) {
         // ★リソースIDは実際のファイル名に合わせて変更してください
         // まだファイルがない場合は、既存の se_levelup などを仮で割り当ててもOKです
         soundMap[SoundType.LEVEL_UP] = soundPool.load(context, R.raw.se_levelup, 1) // 既存
-//        soundMap[SoundType.QUEST_COMPLETE] = soundPool.load(context, R.raw.se_stump, 1) // 既存(旧Coin)
-
-        // 新規追加分 (res/raw/ にファイルを追加してください)
-         soundMap[SoundType.TIMER_START] = soundPool.load(context, R.raw.se_timerstart, 1)
-//         soundMap[SoundType.TIMER_FINISH] = soundPool.load(context, R.raw.se_timer_finish, 1)
-         soundMap[SoundType.UI_CLICK] = soundPool.load(context, R.raw.se_ui_click, 1)
-         soundMap[SoundType.ERROR] = soundPool.load(context, R.raw.se_error, 1)
-        soundMap[SoundType.TIMER_PAUSE]=soundPool.load(context,R.raw.se_timer_stop,1)
+        soundMap[SoundType.QUEST_COMPLETE] = soundPool.load(context, R.raw.se_questcompleted, 1) // 既存(旧Coin)
+        soundMap[SoundType.REQUEST]=soundPool.load(context,R.raw.se_request,1)
+        soundMap[SoundType.DELETE]=soundPool.load(context,R.raw.se_delete,1)
+        soundMap[SoundType.BONUS]=soundPool.load(context,R.raw.se_bonus,1)
+        soundMap[SoundType.TIMER_START] = soundPool.load(context, R.raw.se_timerstart, 1)
+        soundMap[SoundType.TIMER_FINISH] = soundPool.load(context, R.raw.se_timerfinish, 1)
+        soundMap[SoundType.UI_CLICK] = soundPool.load(context, R.raw.se_ui_click, 1)
+        soundMap[SoundType.ERROR] = soundPool.load(context, R.raw.se_error, 1)
+        soundMap[SoundType.TIMER_PAUSE]=soundPool.load(context,R.raw.se_timerstop,1)
     }
 
     fun play(type: SoundType, volume: Float = 1f, rate: Float = 1f) {
@@ -58,13 +62,16 @@ class SoundManager(context: Context) {
     // ショートカットメソッド
     fun playClick() {
         // ピッチをわずかにランダムにすることで機械的なリアリティを出す
-        val randomRate = 0.95f + (Math.random().toFloat() * 0.1f)
+        val randomRate = 0.975f + (Math.random().toFloat() * 0.05f)
         play(SoundType.UI_CLICK, volume = 0.5f, rate = randomRate)
     }
 
     fun playTimerStart() = play(SoundType.TIMER_START)
     fun playTimerFinish() = play(SoundType.TIMER_FINISH)
     fun playQuestComplete() = play(SoundType.QUEST_COMPLETE)
+    fun playBonus()=play(SoundType.BONUS)
+    fun playRequest()=play(SoundType.REQUEST)
+    fun playDelete()=play(SoundType.DELETE)
     fun playLevelUp() = play(SoundType.LEVEL_UP)
     fun playError() = play(SoundType.ERROR)
     fun playTimerPause() = play(SoundType.TIMER_PAUSE)

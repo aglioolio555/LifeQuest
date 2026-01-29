@@ -8,6 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.lifequest.logic.SoundManager
+import com.example.lifequest.ui.components.QuestInputForm
 
 // QuestInputFormがこのパッケージにある、もしくはインポートされている前提です
 
@@ -15,7 +17,8 @@ import androidx.compose.ui.unit.dp
 fun AddQuestScreen(
     // QuestInputFormのコールバックに合わせて型を調整してください
     // 例: dateがLong型、repeatがString型の場合
-    onAddQuest: (String, String, Long?, Int, Int, Long, List<String>) -> Unit
+    onAddQuest: (String, String, Long?, Int, Int, Long, List<String>) -> Unit,
+    soundManager: SoundManager
 ) {
     Column(
         modifier = Modifier

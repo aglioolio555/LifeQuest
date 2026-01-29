@@ -20,6 +20,8 @@ import com.example.lifequest.data.local.entity.BreakActivity
 import com.example.lifequest.data.local.entity.UserStatus
 import com.example.lifequest.ui.dialogs.GameTimePickerDialog
 import com.example.lifequest.data.local.entity.ExtraQuest
+import com.example.lifequest.ui.components.SoundIconButton
+import com.example.lifequest.ui.components.soundClickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +76,7 @@ fun SettingScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showWakeUpPicker = true }
+                                .soundClickable { showWakeUpPicker = true }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -86,7 +88,7 @@ fun SettingScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showBedTimePicker = true }
+                                .soundClickable { showBedTimePicker = true }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -110,7 +112,7 @@ fun SettingScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onExportQuestLogs() }
+                                .soundClickable { onExportQuestLogs() }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -124,7 +126,7 @@ fun SettingScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onExportDailyQuests() }
+                                .soundClickable { onExportDailyQuests() }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -149,7 +151,7 @@ fun SettingScreen(
                         Text("ボーナスミッション設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Text("全タスク完了後にランダム出現", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     }
-                    IconButton(onClick = { showExtraAddDialog = true }) {
+                    SoundIconButton(onClick = { showExtraAddDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "追加", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -163,7 +165,7 @@ fun SettingScreen(
                             Text(extra.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text("${extra.estimatedTime / 60000}分 / +${extra.expReward}EXP", style = MaterialTheme.typography.bodySmall)
                         }
-                        IconButton(onClick = { onDeleteExtraQuest(extra) }, modifier = Modifier.size(24.dp)) {
+                        SoundIconButton(onClick = { onDeleteExtraQuest(extra) }, modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -188,7 +190,7 @@ fun SettingScreen(
                         Text("回復アクティビティ設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Text("休憩時間に提案される行動リストです。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
                     }
-                    IconButton(onClick = { showAddDialog = true }) {
+                    SoundIconButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "追加", tint = MaterialTheme.colorScheme.primary)
                     }
                 }

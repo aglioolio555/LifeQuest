@@ -31,36 +31,40 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.example.lifequest.DailyQuestType
+import com.example.lifequest.logic.LocalSoundManager
+import com.example.lifequest.ui.components.SoundButton
+import com.example.lifequest.ui.components.SoundTextButton
+import com.example.lifequest.ui.components.soundClickable
 
 
 // ... (LevelUpDialog, QuestDetailsDialog, GiveUpConfirmDialog は変更なし) ...
 // ★追加: 画面固定（ピン留め）の提案ダイアログ
-@Composable
-fun PinningConfirmDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("不退転の集中モード") },
-        text = {
-            Text(
-                "集中を最大化するために、画面固定機能（ピン留め）を使用しますか？\n\n" +
-                        "※固定中はホームボタンや他のアプリへの切り替えが制限され、物理的な「聖域」が作られます。"
-            )
-        },
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("固定して開始")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("通常モードで開始")
-            }
-        }
-    )
-}
+//@Composable
+//fun PinningConfirmDialog(
+//    onDismiss: () -> Unit,
+//    onConfirm: () -> Unit
+//) {
+//    AlertDialog(
+//        onDismissRequest = onDismiss,
+//        title = { Text("不退転の集中モード") },
+//        text = {
+//            Text(
+//                "集中を最大化するために、画面固定機能（ピン留め）を使用しますか？\n\n" +
+//                        "※固定中はホームボタンや他のアプリへの切り替えが制限され、物理的な「聖域」が作られます。"
+//            )
+//        },
+//        confirmButton = {
+//            Button(onClick = onConfirm) {
+//                Text("固定して開始")
+//            }
+//        },
+//        dismissButton = {
+//            TextButton(onClick = onDismiss) {
+//                Text("通常モードで開始")
+//            }
+//        }
+//    )
+//}
 
 // ★追加: 中断からの復帰（おかえり）ダイアログ
 @Composable
@@ -89,7 +93,7 @@ fun WelcomeBackDialog(
             }
         },
         confirmButton = {
-            Button(
+            SoundButton(
                 onClick = onResume,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
@@ -100,51 +104,51 @@ fun WelcomeBackDialog(
 }
 
 // ★修正: 既存のGiveUpConfirmDialogの文言と色を強化
-@Composable
-fun GiveUpConfirmDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        containerColor = MaterialTheme.colorScheme.errorContainer, // 警告色背景
-        titleContentColor = MaterialTheme.colorScheme.onErrorContainer,
-        textContentColor = MaterialTheme.colorScheme.onErrorContainer,
-        onDismissRequest = onDismiss,
-        title = { Text("クエストを放棄しますか？") },
-        text = {
-            Text(
-                "今中断すると、ここまでの積み重ねが途切れてしまいます。\n\n" +
-                        "「あと少し」の踏ん張りが、自分を変える一歩になります。\n" +
-                        "本当に冒険を諦めますか？"
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("断念する")
-            }
-        },
-        dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("集中を続ける！")
-            }
-        }
-    )
-}
-@Composable
-fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("🎉 LEVEL UP! 🎉") },
-        text = { Text("レベルが $level になりました！") },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
-    )
-}
+//@Composable
+//fun GiveUpConfirmDialog(
+//    onDismiss: () -> Unit,
+//    onConfirm: () -> Unit
+//) {
+//    AlertDialog(
+//        containerColor = MaterialTheme.colorScheme.errorContainer, // 警告色背景
+//        titleContentColor = MaterialTheme.colorScheme.onErrorContainer,
+//        textContentColor = MaterialTheme.colorScheme.onErrorContainer,
+//        onDismissRequest = onDismiss,
+//        title = { Text("クエストを放棄しますか？") },
+//        text = {
+//            Text(
+//                "今中断すると、ここまでの積み重ねが途切れてしまいます。\n\n" +
+//                        "「あと少し」の踏ん張りが、自分を変える一歩になります。\n" +
+//                        "本当に冒険を諦めますか？"
+//            )
+//        },
+//        confirmButton = {
+//            TextButton(
+//                onClick = onConfirm,
+//                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+//            ) {
+//                Text("断念する")
+//            }
+//        },
+//        dismissButton = {
+//            SoundButton(
+//                onClick = onDismiss,
+//                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+//            ) {
+//                Text("集中を続ける！")
+//            }
+//        }
+//    )
+//}
+//@Composable
+//fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
+//    AlertDialog(
+//        onDismissRequest = onDismiss,
+//        title = { Text("🎉 LEVEL UP! 🎉") },
+//        text = { Text("レベルが $level になりました！") },
+//        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
+//    )
+//}
 
 @Composable
 fun QuestDetailsDialog(
@@ -153,6 +157,7 @@ fun QuestDetailsDialog(
     onDismiss: () -> Unit,
     onSubtaskToggle: (Subtask) -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = quest.title) },
@@ -172,12 +177,15 @@ fun QuestDetailsDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSubtaskToggle(sub) }
+                                .soundClickable { onSubtaskToggle(sub) }
                                 .padding(vertical = 4.dp)
                         ) {
                             Checkbox(
                                 checked = sub.isCompleted,
-                                onCheckedChange = { onSubtaskToggle(sub) },
+                                onCheckedChange = {
+                                    soundManager.playClick()
+                                    onSubtaskToggle(sub)
+                                                  },
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -192,34 +200,34 @@ fun QuestDetailsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } }
+        confirmButton = { SoundTextButton(onClick = onDismiss) { Text("閉じる") } }
     )
 }
 
-//@Composable
-//fun GiveUpConfirmDialog(
-//    onDismiss: () -> Unit,
-//    onConfirm: () -> Unit
-//) {
-//    AlertDialog(
-//        onDismissRequest = onDismiss,
-//        title = { Text("集中を中断しますか？") },
-//        text = { Text("今中断すると、このセッションのフローが途切れてしまいます。\n\n本当に終了しますか？") },
-//        confirmButton = {
-//            TextButton(
-//                onClick = onConfirm,
-//                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-//            ) {
-//                Text("中断する")
-//            }
-//        },
-//        dismissButton = {
-//            Button(onClick = onDismiss) {
-//                Text("続ける！")
-//            }
-//        }
-//    )
-//}
+@Composable
+fun GiveUpConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("集中を中断しますか？") },
+        text = { Text("今中断すると、このセッションのフローが途切れてしまいます。\n\n本当に終了しますか？") },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("中断する")
+            }
+        },
+        dismissButton = {
+            SoundButton(onClick = onDismiss) {
+                Text("続ける！")
+            }
+        }
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -376,7 +384,7 @@ fun QuestEditDialog(
         )
     }
 }
-// ★追加: デイリークエスト達成の特別ポップアップ
+// デイリークエスト達成の特別ポップアップ
 @Composable
 fun DailyQuestCompletionDialog(
     type: DailyQuestType,
@@ -472,7 +480,7 @@ fun DailyQuestCompletionDialog(
             }
         },
         confirmButton = {
-            Button(
+            SoundButton(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = type.color),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)

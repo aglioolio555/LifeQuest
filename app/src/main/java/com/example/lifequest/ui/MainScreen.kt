@@ -126,6 +126,13 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
+    // ★ViewModelからの音イベントを監視して再生
+    LaunchedEffect(Unit) {
+        viewModel.soundEvent.collect { soundType ->
+            soundManager.play(soundType)
+        }
+    }
+
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = System.currentTimeMillis()
@@ -138,6 +145,19 @@ fun MainScreen(viewModel: MainViewModel) {
             soundManager.playLevelUp()
         }
     }
+    //サブタスク追加等の変更を即座にダイアログに反映させるための同期処理
+    LaunchedEffect(quests, futureQuests) {
+        editingQuestData?.let { current ->
+            // 現在編集中のクエストIDと同じものを最新リストから探す
+            val updated = quests.find { it.quest.id == current.quest.id }
+                ?: futureQuests.find { it.quest.id == current.quest.id }
+
+            // 最新データが見つかり、内容が更新されていれば差し替える
+            if (updated != null && updated != current) {
+                editingQuestData = updated
+            }
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/csv")
@@ -146,7 +166,8 @@ fun MainScreen(viewModel: MainViewModel) {
             when (exportType) {
                 ExportType.LOGS -> viewModel.exportLogsToCsv(context, uri)
                 ExportType.DAILY_QUESTS -> viewModel.exportDailyQuestsToCsv(context, uri)
-                else -> { /* 何もしない */ }
+                else -> { /* 何もしない */
+                }
             }
 
             exportType = null
@@ -160,21 +181,25 @@ fun MainScreen(viewModel: MainViewModel) {
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), // 少し透過
                         contentColor = MaterialTheme.colorScheme.primary
                     ) {
-                        Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }.forEach { screen ->
-                            NavigationBarItem(
-                                icon = { Icon(screen.icon, contentDescription = screen.label) },
-                                label = { Text(screen.label) },
-                                selected = currentScreen == screen,
-                                onClick = { currentScreen = screen },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS }
+                            .forEach { screen ->
+                                NavigationBarItem(
+                                    icon = { Icon(screen.icon, contentDescription = screen.label) },
+                                    label = { Text(screen.label) },
+                                    selected = currentScreen == screen,
+                                    onClick = {
+                                        currentScreen = screen
+                                        soundManager.playClick()
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
-                            )
-                        }
+                            }
                     }
                 }
             }
@@ -198,7 +223,10 @@ fun MainScreen(viewModel: MainViewModel) {
                                 },
                                 timerState = timerState,
                                 currentTime = currentTime,
-                                onOpenSettings = { currentScreen = Screen.SETTINGS },
+                                onOpenSettings = {
+                                    soundManager.playClick()
+                                    currentScreen = Screen.SETTINGS
+                                                 },
                                 onEdit = { editingQuestData = it },
                                 onToggleTimer = { quest ->
                                     if (!timerState.isRunning) {
@@ -214,6 +242,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onSubtaskToggle = { viewModel.toggleSubtask(it) },
                             )
                         }
+
                         Screen.LIST -> {
                             QuestListContent(
                                 quests = quests,
@@ -234,12 +263,21 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onSubtaskToggle = { viewModel.toggleSubtask(it) }
                             )
                         }
+
                         Screen.ADD -> {
                             AddQuestScreen(
                                 onAddQuest = { title, note, date, repeat, category, time, subtasks ->
-                                    viewModel.addQuest(title, note, date, repeat, category, time, subtasks)
+                                    viewModel.addQuest(
+                                        title,
+                                        note,
+                                        date,
+                                        repeat,
+                                        category,
+                                        time,
+                                        subtasks
+                                    )
                                     currentScreen = Screen.LIST
-                                }
+                                }, soundManager = soundManager
                             )
                         }
                         // ... (FOCUS, STATISTICS, SETTINGS も同様に) ...
@@ -253,7 +291,12 @@ fun MainScreen(viewModel: MainViewModel) {
                                     currentTime = currentTime,
                                     isInterrupted = isInterrupted,
                                     onResumeFromInterruption = { viewModel.resumeFromInterruption() },
-                                    onToggleTimer = { viewModel.toggleTimer(activeQuest.quest, soundManager) },
+                                    onToggleTimer = {
+                                        viewModel.toggleTimer(
+                                            activeQuest.quest,
+                                            soundManager
+                                        )
+                                    },
                                     onModeToggle = { viewModel.toggleTimerMode() },
                                     onComplete = {
                                         soundManager.playCoinSound()
@@ -262,11 +305,18 @@ fun MainScreen(viewModel: MainViewModel) {
                                     },
                                     onSubtaskToggle = { viewModel.toggleSubtask(it) },
                                     onExit = {
-                                        if (timerState.isRunning) viewModel.toggleTimer(activeQuest.quest, soundManager)
+                                        if (timerState.isRunning) viewModel.toggleTimer(
+                                            activeQuest.quest,
+                                            soundManager
+                                        )
                                         currentScreen = Screen.HOME
                                     },
                                     onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
-                                    onCompleteBreakActivity = { viewModel.completeBreakActivity(soundManager) }
+                                    onCompleteBreakActivity = {
+                                        viewModel.completeBreakActivity(
+                                            soundManager
+                                        )
+                                    }
                                 )
                             } else if (isBonusMissionLoading) {
                                 // ★追加: ボーナスミッション準備中のローディング表示
@@ -280,14 +330,27 @@ fun MainScreen(viewModel: MainViewModel) {
                                 currentScreen = Screen.HOME
                             }
                         }
+
                         Screen.STATISTICS -> StatisticsScreen(statistics = statistics)
                         Screen.SETTINGS -> {
                             SettingScreen(
                                 activities = breakActivities,
                                 userStatus = status,
-                                onAddActivity = { title, desc -> viewModel.addBreakActivity(title, desc) },
+                                onAddActivity = { title, desc ->
+                                    viewModel.addBreakActivity(
+                                        title,
+                                        desc
+                                    )
+                                },
                                 onDeleteActivity = { viewModel.deleteBreakActivity(it) },
-                                onUpdateTargetTimes = { wh, wm, bh, bm -> viewModel.updateTargetTimes(wh, wm, bh, bm) },
+                                onUpdateTargetTimes = { wh, wm, bh, bm ->
+                                    viewModel.updateTargetTimes(
+                                        wh,
+                                        wm,
+                                        bh,
+                                        bm
+                                    )
+                                },
                                 onExportQuestLogs = {
                                     exportType = ExportType.LOGS
                                     exportLauncher.launch("quest_logs_backup.csv")
@@ -297,42 +360,58 @@ fun MainScreen(viewModel: MainViewModel) {
                                     exportLauncher.launch("daily_quests_backup.csv")
                                 },
                                 extraQuests = extraQuests,
-                                onAddExtraQuest = { title, desc, minutes -> viewModel.addExtraQuest(title, desc, minutes) },
+                                onAddExtraQuest = { title, desc, minutes ->
+                                    viewModel.addExtraQuest(
+                                        title,
+                                        desc,
+                                        minutes
+                                    )
+                                },
                                 onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
-                                onBack = { currentScreen = Screen.HOME }
+                                onBack = {
+                                    soundManager.playClick()
+                                    currentScreen = Screen.HOME
+                                }
                             )
-                            BackHandler { currentScreen = Screen.HOME }
+                            BackHandler {
+                                soundManager.playClick()
+                                currentScreen = Screen.HOME
+                            }
                         }
                     }
                 }
             }
-    }
+        }
 
-    }
+        // ... (Popup, Dialog handling) ...
+        if (popupQueue.isNotEmpty()) {
+            val currentEvent = popupQueue.first()
+            DailyQuestCompletionDialog(
+                type = currentEvent.type,
+                expEarned = currentEvent.expEarned,
+                onDismiss = {
+                    soundManager.playCoinSound()
+                    viewModel.dismissCurrentPopup()
+                }
+            )
+        }
 
-    // ... (Popup, Dialog handling) ...
-    if (popupQueue.isNotEmpty()) {
-        val currentEvent = popupQueue.first()
-        DailyQuestCompletionDialog(
-            type = currentEvent.type,
-            expEarned = currentEvent.expEarned,
-            onDismiss = {
-                soundManager.playCoinSound()
-                viewModel.dismissCurrentPopup()
-            }
-        )
-    }
-
-    if (editingQuestData != null) {
-        QuestEditDialog(
-            questWithSubtasks = editingQuestData!!,
-            onDismiss = { editingQuestData = null },
-            onConfirm = { updatedQuest ->
-                viewModel.updateQuest(updatedQuest)
-                editingQuestData = null
-            },
-            onAddSubtask = { title -> viewModel.addSubtask(editingQuestData!!.quest.id, title) },
-            onDeleteSubtask = { subtask -> viewModel.deleteSubtask(subtask) }
-        )
+        if (editingQuestData != null) {
+            QuestEditDialog(
+                questWithSubtasks = editingQuestData!!,
+                onDismiss = { editingQuestData = null },
+                onConfirm = { updatedQuest ->
+                    viewModel.updateQuest(updatedQuest)
+                    editingQuestData = null
+                },
+                onAddSubtask = { title ->
+                    viewModel.addSubtask(
+                        editingQuestData!!.quest.id,
+                        title
+                    )
+                },
+                onDeleteSubtask = { subtask -> viewModel.deleteSubtask(subtask) }
+            )
+        }
     }
 }

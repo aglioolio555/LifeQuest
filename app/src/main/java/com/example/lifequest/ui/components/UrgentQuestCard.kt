@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.logic.LocalSoundManager
 import com.example.lifequest.utils.formatDateTime
 import com.example.lifequest.utils.formatDuration
 
@@ -33,6 +34,7 @@ fun UrgentQuestCard(
     val quest = questWithSubtasks.quest
     val subtasks = questWithSubtasks.subtasks
     val haptic = LocalHapticFeedback.current
+    val soundManager = LocalSoundManager.current
 
     val isRunning = quest.lastStartTime != null
     val displayTime = if (isRunning) {
@@ -55,7 +57,7 @@ fun UrgentQuestCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = {
+            .soundClickable(onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onEdit()
             }),
@@ -179,7 +181,7 @@ fun UrgentQuestCard(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .soundClickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onSubtaskToggle(subtask)
                                 }
@@ -188,6 +190,7 @@ fun UrgentQuestCard(
                             Checkbox(
                                 checked = subtask.isCompleted,
                                 onCheckedChange = {
+                                    soundManager.playClick()
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onSubtaskToggle(subtask)
                                 },

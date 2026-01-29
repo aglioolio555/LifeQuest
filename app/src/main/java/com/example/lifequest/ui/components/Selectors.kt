@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp // ★追加
 import com.example.lifequest.QuestCategory // ★追加
 import com.example.lifequest.RepeatMode
+import com.example.lifequest.logic.LocalSoundManager
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -21,11 +22,13 @@ fun RepeatSelector(
     currentMode: Int,
     onModeSelected: (Int) -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     val mode = RepeatMode.fromInt(currentMode)
     var expanded = false // 簡易実装のため、ここではドロップダウンではなく順次切り替え方式にします
 
     AssistChip(
         onClick = {
+            soundManager.playClick()
             // 0->1->2->3->0 の順で切り替え
             val nextMode = (currentMode + 1) % RepeatMode.entries.size
             onModeSelected(nextMode)
@@ -57,6 +60,7 @@ fun CategorySelector(
     selectedCategory: Int,
     onCategorySelected: (Int) -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     Column {
         Text("カテゴリ", style = MaterialTheme.typography.labelMedium)
         Row(
@@ -68,7 +72,10 @@ fun CategorySelector(
             QuestCategory.entries.forEach { category ->
                 FilterChip(
                     selected = category.id == selectedCategory,
-                    onClick = { onCategorySelected(category.id) },
+                    onClick = {
+                        soundManager.playClick()
+                        onCategorySelected(category.id)
+                              },
                     label = { Text(category.label) },
                     leadingIcon = {
                         Icon(

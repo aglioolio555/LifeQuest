@@ -10,6 +10,7 @@ import com.example.lifequest.RepeatMode // 追加
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.logic.FocusTimerManager
 import com.example.lifequest.logic.SoundManager
+import com.example.lifequest.logic.SoundType
 import com.example.lifequest.logic.StatisticsCalculator
 import com.example.lifequest.logic.DailyQuestManager
 import com.example.lifequest.logic.RewardCalculator
@@ -265,22 +266,25 @@ class MainViewModel(
         if (timerState.value.isRunning) {
             timerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
-            soundManager?.playClick()
+            triggerSound(SoundType.TIMER_PAUSE)
         } else {
+            //to-do本当に必要か？
+            updateQuestAccumulatedTime(quest)
+            //
             updateQuestStartTime(quest)
-            soundManager?.playTimerStart()
+            triggerSound(SoundType.TIMER_START)
             timerManager.startTimer(
                 scope = viewModelScope,
-                onFinish = { handleTimerFinish(quest, soundManager) }
+                onFinish = { handleTimerFinish(quest) }
             )
         }
     }
 
     fun toggleTimerMode() = timerManager.toggleMode()
 
-    private fun handleTimerFinish(quest: Quest, soundManager: SoundManager?) {
+    private fun handleTimerFinish(quest: Quest) {
         updateQuestAccumulatedTime(quest)
-        soundManager?.playTimerFinishSound()
+        triggerSound(SoundType.TIMER_FINISH)
         grantExp(CYCLE_BONUS_EXP)
 
         val sessionTime = if(timerState.value.mode == FocusMode.COUNT_UP) 0L else timerState.value.initialSeconds * 1000
@@ -300,7 +304,7 @@ class MainViewModel(
             timerManager.startBreak(
                 scope = viewModelScope,
                 onFinish = {
-                    soundManager?.playTimerFinishSound()
+                    triggerSound(SoundType.TIMER_FINISH)
                     timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
                     _currentBreakActivity.value = null
                 }
@@ -325,6 +329,13 @@ class MainViewModel(
 
             // 経験値付与
             if (result.totalExp > 0) grantExp(result.totalExp)
+
+            //SE
+            if(isBonusMissionRunning){
+                triggerSound(SoundType.BONUS)
+            }else{
+                triggerSound(SoundType.QUEST_COMPLETE)
+            }
 
             // 通常のデイリー/カテゴリポップアップ
             if (result.dailyQuestType != null) {
@@ -390,6 +401,7 @@ class MainViewModel(
     // ★追加: エキストラクエスト管理
     fun addExtraQuest(title: String, desc: String, minutes: Int) {
         if (title.isBlank()) return
+        triggerSound(SoundType.REQUEST)
         viewModelScope.launch {
             repository.insertExtraQuest(
                 ExtraQuest(
@@ -401,12 +413,16 @@ class MainViewModel(
         }
     }
 
-    fun deleteExtraQuest(extra: ExtraQuest) = viewModelScope.launch {
-        repository.deleteExtraQuest(extra)
+    fun deleteExtraQuest(extra: ExtraQuest){
+        triggerSound(SoundType.DELETE)
+        viewModelScope.launch {
+            repository.deleteExtraQuest(extra)
+        }
     }
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = rewardCalculator.calculateExp(estimatedTime)
+        triggerSound(SoundType.REQUEST)
         viewModelScope.launch {
             repository.insertQuest(
                 Quest(
@@ -430,16 +446,20 @@ class MainViewModel(
 
     fun completeBreakActivity(soundManager: SoundManager?) {
         grantExp(BREAK_ACTIVITY_REWARD)
-        soundManager?.playCoinSound()
+        triggerSound(SoundType.QUEST_COMPLETE)
         _currentBreakActivity.value = null
     }
 
     fun addBreakActivity(title: String, description: String) {
         if (title.isBlank()) return
+        triggerSound(SoundType.REQUEST)
         viewModelScope.launch { repository.insertBreakActivity(BreakActivity(title = title, description = description)) }
     }
 
-    fun deleteBreakActivity(activity: BreakActivity) = viewModelScope.launch { repository.deleteBreakActivity(activity) }
+    fun deleteBreakActivity(activity: BreakActivity){
+        triggerSound(SoundType.DELETE)
+        viewModelScope.launch { repository.deleteBreakActivity(activity) }
+    }
 
     private fun updateQuestStartTime(quest: Quest) = viewModelScope.launch {
         repository.updateQuest(quest.copy(lastStartTime = System.currentTimeMillis()))
@@ -461,7 +481,10 @@ class MainViewModel(
     fun toggleSubtask(subtask: Subtask) = viewModelScope.launch { repository.updateSubtask(subtask.copy(isCompleted = !subtask.isCompleted)) }
     fun deleteSubtask(subtask: Subtask) = viewModelScope.launch { repository.deleteSubtask(subtask) }
     fun updateQuest(quest: Quest) = viewModelScope.launch { repository.updateQuest(quest) }
-    fun deleteQuest(quest: Quest) = viewModelScope.launch { repository.deleteQuest(quest) }
+    fun deleteQuest(quest: Quest){
+        triggerSound(SoundType.DELETE)
+        viewModelScope.launch { repository.deleteQuest(quest) }
+    }
     fun exportLogsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportLogsToCsv(context, uri) }
     fun exportDailyQuestsToCsv(context: Context, uri: Uri) = viewModelScope.launch { repository.exportDailyQuestsToCsv(context, uri) }
     private fun calculateFinalActualTime(quest: Quest): Long {
@@ -490,5 +513,16 @@ class MainViewModel(
 
     fun resumeFromInterruption() {
         _isInterrupted.value = false
+    }
+
+    // ★追加: 音声再生イベント通知用チャンネル
+    private val _soundEvent = Channel<SoundType>(Channel.BUFFERED)
+    val soundEvent = _soundEvent.receiveAsFlow()
+
+    // ヘルパー関数: イベント送信
+    private fun triggerSound(type: SoundType) {
+        viewModelScope.launch {
+            _soundEvent.send(type)
+        }
     }
 }

@@ -1,4 +1,4 @@
-package com.example.lifequest.ui.screens
+package com.example.lifequest.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -11,9 +11,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.lifequest.ui.components.CategorySelector
+import com.example.lifequest.logic.LocalSoundManager
+import com.example.lifequest.logic.SoundManager
+import com.example.lifequest.logic.SoundType
 import com.example.lifequest.ui.dialogs.GameTimePickerDialog // ★追加
-import com.example.lifequest.ui.components.RepeatSelector
 import com.example.lifequest.utils.combineDateAndTime
 import com.example.lifequest.utils.extractTime
 import com.example.lifequest.utils.formatDate
@@ -22,7 +23,7 @@ import com.example.lifequest.utils.formatTime
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestInputForm(
-    onAddQuest: (String, String, Long?, Int, Int, Long, List<String>) -> Unit
+    onAddQuest: (String, String, Long?, Int, Int, Long, List<String>) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -40,7 +41,7 @@ fun QuestInputForm(
     var otherMinutes by remember { mutableStateOf("") }
 
     var subtasks by remember { mutableStateOf(listOf("")) }
-
+    val soundManager = LocalSoundManager.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("クエスト名") }, modifier = Modifier.fillMaxWidth())
@@ -55,6 +56,7 @@ fun QuestInputForm(
                     FilterChip(
                         selected = !isOtherTimeSelected && selectedTimeMillis == mins * 60 * 1000L,
                         onClick = {
+                            soundManager.playClick()
                             selectedTimeMillis = mins * 60 * 1000L
                             isOtherTimeSelected = false
                         },
@@ -64,7 +66,9 @@ fun QuestInputForm(
                 }
                 FilterChip(
                     selected = isOtherTimeSelected,
-                    onClick = { isOtherTimeSelected = true },
+                    onClick = {
+                        soundManager.playClick()
+                        isOtherTimeSelected = true },
                     label = { Text("その他") },
                     modifier = Modifier.weight(1f)
                 )
@@ -85,7 +89,10 @@ fun QuestInputForm(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 日付選択ボタン
                     AssistChip(
-                        onClick = { showDatePicker = true },
+                        onClick = {
+                            soundManager.playClick()
+                            showDatePicker = true
+                                  },
                         label = { Text(if (dueDate != null) formatDate(dueDate!!) else "期限なし") },
                         leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
                     )
@@ -94,7 +101,10 @@ fun QuestInputForm(
                     if (dueDate != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         AssistChip(
-                            onClick = { showTimePicker = true },
+                            onClick = {
+                                soundManager.playClick()
+                                showTimePicker = true
+                                      },
                             label = { Text(formatTime(dueDate!!)) },
                             leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) }
                         )
@@ -130,7 +140,7 @@ fun QuestInputForm(
                     ),
                     shape = MaterialTheme.shapes.medium,
                     trailingIcon = {
-                        IconButton(onClick = {
+                        SoundIconButton(onClick = {
                             val newList = subtasks.toMutableList()
                             newList.removeAt(index)
                             if (newList.isEmpty()) newList.add("")
@@ -139,7 +149,7 @@ fun QuestInputForm(
                     }
                 )
             }
-            TextButton(onClick = { subtasks = subtasks + "" }) {
+            SoundTextButton(onClick = { subtasks = subtasks + "" }) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Text("サブタスクを追加")
             }
@@ -152,7 +162,6 @@ fun QuestInputForm(
                     } else {
                         selectedTimeMillis
                     }
-
                     onAddQuest(title, note, dueDate, repeatMode, category, finalTime, subtasks)
 
                     // リセット
@@ -162,7 +171,7 @@ fun QuestInputForm(
                 enabled = title.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("クエストを受注する")
+                Text("クエストを追加する")
             }
         }
     }
@@ -171,7 +180,7 @@ fun QuestInputForm(
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                TextButton(onClick = {
+                SoundTextButton(onClick = {
                     // 日付選択時、時間はデフォルトで23:59にするか、現在の時間を維持するか
                     // ここでは一旦 23:59 に設定する例 (または 00:00)
                     val date = datePickerState.selectedDateMillis
@@ -182,7 +191,7 @@ fun QuestInputForm(
                     // 日付決定後に自動で時間選択を出すならここで showTimePicker = true
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("キャンセル") } }
+            dismissButton = { SoundTextButton(onClick = { showDatePicker = false }) { Text("キャンセル") } }
         ) { DatePicker(state = datePickerState) }
     }
 

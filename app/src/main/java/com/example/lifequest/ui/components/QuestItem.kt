@@ -1,7 +1,6 @@
 package com.example.lifequest.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,9 +17,9 @@ import androidx.compose.ui.unit.dp
 import com.example.lifequest.QuestCategory
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
+import com.example.lifequest.logic.LocalSoundManager
 import com.example.lifequest.utils.formatDateTime
 import com.example.lifequest.utils.formatDuration
-import com.example.lifequest.logic.LocalSoundManager
 
 @Composable
 fun QuestItem(
@@ -60,15 +59,12 @@ fun QuestItem(
     val timeStyle = if (isLarge) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge
     val iconSize = if (isLarge) 48.dp else 40.dp
     val completeIconSize = if (isLarge) 36.dp else 28.dp
-
     val soundManager = LocalSoundManager.current
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = {
+            .soundClickable(onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress) // Feedback
-                soundManager.playClick()
                 onClick()
             }),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // フラット（枠線で表現）
@@ -87,7 +83,6 @@ fun QuestItem(
                 IconButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        soundManager.playTimerStart()
                         onToggleTimer()
                     },
                     modifier = Modifier.size(iconSize).padding(end = 8.dp),
@@ -160,7 +155,6 @@ fun QuestItem(
 
                 IconButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    soundManager.playQuestComplete()
                     onComplete()
                 }, modifier = Modifier.size(completeIconSize)) {
                     Icon(Icons.Default.CheckCircle, "完了", modifier = Modifier.size(completeIconSize), tint = MaterialTheme.colorScheme.primary)
@@ -175,7 +169,7 @@ fun QuestItem(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .soundClickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onSubtaskToggle(subtask)
                                 }
@@ -184,6 +178,7 @@ fun QuestItem(
                             Checkbox(
                                 checked = subtask.isCompleted,
                                 onCheckedChange = {
+                                    soundManager.playClick()
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onSubtaskToggle(subtask)
                                 },

@@ -27,6 +27,8 @@ import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration
 import androidx.compose.ui.platform.LocalContext
 import com.example.lifequest.MainActivity
+import com.example.lifequest.logic.LocalSoundManager
+import com.example.lifequest.ui.components.SoundIconButton
 // import com.example.lifequest.ui.dialogs.PinningConfirmDialog // 削除
 import com.example.lifequest.ui.dialogs.WelcomeBackDialog
 
@@ -65,11 +67,10 @@ fun FocusScreen(
     val backgroundColor = animatedColor.copy(alpha = 0.05f)
     val context = LocalContext.current
     val activity = context as? MainActivity
+    val soundManager=LocalSoundManager.current
 
-    // ★削除: PinningConfirmDialog用の状態変数は不要
-    // var showPinningDialog by remember { mutableStateOf(false) }
 
-    // ★変更: 自動固定ロジック
+    //自動固定ロジック
     val handleStartTimer = {
         if (!timerState.isRunning && !timerState.isBreak) {
             // タイマー開始時は問答無用で画面固定を試行
@@ -80,13 +81,13 @@ fun FocusScreen(
         }
     }
 
-    // ★追加: 完了時は固定解除
+    //完了時は固定解除
     val handleComplete = {
         activity?.stopPinning()
         onComplete()
     }
 
-    // ★追加: 中断時は固定解除
+    //中断時は固定解除
     val handleExit = {
         activity?.stopPinning()
         onExit()
@@ -97,7 +98,7 @@ fun FocusScreen(
         WelcomeBackDialog(onResume = onResumeFromInterruption)
     }
 
-    // ★削除: PinningConfirmDialogの呼び出しブロック
+    //PinningConfirmDialogの呼び出しブロック
 
     Box(
         modifier = Modifier
@@ -107,14 +108,14 @@ fun FocusScreen(
         contentAlignment = Alignment.Center
     ) {
         // ヘッダーボタン類
-        IconButton(
+        SoundIconButton(
             onClick = { showDetailsDialog = true },
             modifier = Modifier.align(Alignment.TopStart)
         ) {
             Icon(Icons.Default.Info, contentDescription = "詳細", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        IconButton(
+        SoundIconButton(
             onClick = { showGiveUpDialog = true },
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
@@ -207,10 +208,16 @@ fun FocusScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            OutlinedButton(onClick = onRerollBreakActivity) {
+                            OutlinedButton(onClick = {
+                                soundManager.playClick()
+                                onRerollBreakActivity
+                            }) {
                                 Text("パス")
                             }
-                            Button(onClick = onCompleteBreakActivity) {
+                            Button(onClick = {
+                                soundManager.playClick()
+                                onCompleteBreakActivity
+                            }) {
                                 Text("実行する (+XP)")
                             }
                         }
@@ -223,7 +230,7 @@ fun FocusScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledIconButton(
-                        onClick = handleStartTimer, // ★変更: ダイアログなしの関数
+                        onClick = handleStartTimer,
                         modifier = Modifier.size(80.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
                     ) {
@@ -235,7 +242,7 @@ fun FocusScreen(
                     }
 
                     FilledTonalIconButton(
-                        onClick = handleComplete, // ★変更: 固定解除付き関数
+                        onClick = handleComplete,
                         modifier = Modifier.size(64.dp)
                     ) {
                         Icon(
@@ -263,7 +270,7 @@ fun FocusScreen(
             onDismiss = { showGiveUpDialog = false },
             onConfirm = {
                 showGiveUpDialog = false
-                handleExit() // ★変更: 固定解除付き関数
+                handleExit()
             }
         )
     }
