@@ -16,7 +16,8 @@ import com.example.lifequest.ui.BlockActivity
 import com.example.lifequest.utils.AppUtils
 import kotlinx.coroutines.*
 import com.example.lifequest.data.local.AppDatabase
-// Hiltを使用している前提ですが、使用していない場合はRepositoryの手動取得が必要です
+import android.provider.Settings
+import android.util.Log
 class AppMonitorService : Service() {
     lateinit var repository: MainRepository
     private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
@@ -84,10 +85,10 @@ class AppMonitorService : Service() {
 
             while (isMonitoring) {
                 val currentTime = System.currentTimeMillis()
-                // 直近1秒の履歴を取得
+                // 取得範囲を「直近1分」などに広げる
                 val stats = usageStatsManager.queryUsageStats(
                     UsageStatsManager.INTERVAL_DAILY,
-                    currentTime - 1000,
+                    currentTime - 1000 * 60, // 1分前〜現在
                     currentTime
                 )
 
@@ -95,8 +96,8 @@ class AppMonitorService : Service() {
                     val topApp = stats.maxByOrNull { it.lastTimeUsed }
                     val currentPackage = topApp?.packageName
 
-                    if (currentPackage != null && !allowedPackages.contains(currentPackage)) {
-                        // システムUIなどは除外判定が必要な場合あり（通常packageNameには出てこないことが多い）
+                    //currentPackage != packageName (自分自身ではない) を条件に追加
+                    if (currentPackage != null && currentPackage != packageName && !allowedPackages.contains(currentPackage)) {
                         blockApp()
                     }
                 }
@@ -106,11 +107,26 @@ class AppMonitorService : Service() {
     }
 
     private fun blockApp() {
-        // ブロック画面を起動して覆いかぶせる
-        val intent = Intent(this, BlockActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // 権限があるかチェック
+        if (!Settings.canDrawOverlays(this)) {
+            Log.e("AppMonitor", "Block failed: Overlay permission not granted.")
+            return
         }
-        startActivity(intent)
+
+        val intent = Intent(this, BlockActivity::class.java).apply {
+            // バックグラウンドからの起動には NEW_TASK が必須（これはOK）
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            // アニメーションを消すとよりブロックらしくなります
+            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        }
+
+        try {
+            Log.d("AppMonitor", "Attempting to start BlockActivity...")
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("AppMonitor", "Failed to start BlockActivity", e)
+            e.printStackTrace()
+        }
     }
 
     override fun onDestroy() {
