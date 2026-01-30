@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.example.lifequest.data.local.entity.ExtraQuest
 import kotlinx.coroutines.flow.Flow
 
@@ -17,6 +18,9 @@ interface ExtraQuestDao {
 
     @Insert
     fun insert(quest: ExtraQuest): Long
+
+    @Update
+    fun update(quest: ExtraQuest): Int
 
     @Delete
     fun delete(quest: ExtraQuest): Int

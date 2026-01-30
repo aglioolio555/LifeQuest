@@ -348,7 +348,7 @@ class MainViewModel(
 
     // --- CRUD & Helper Wrappers ---
 
-    // ★修正: completeQuest を拡張してボーナスミッション対応
+    //completeQuest を拡張してボーナスミッション対応
     fun completeQuest(quest: Quest) {
         FocusTimerManager.stopTimer()
         viewModelScope.launch {
@@ -388,7 +388,7 @@ class MainViewModel(
         }
     }
 
-    // ★修正: ボーナスミッションを開始する（正規クエスト変換＆タイマー開始）
+    //ボーナスミッションを開始する（正規クエスト変換＆タイマー開始）
     fun startBonusMission(extra: ExtraQuest, soundManager: SoundManager) {
         viewModelScope.launch {
             _isBonusMissionLoading.value = true // ロード開始
@@ -450,6 +450,14 @@ class MainViewModel(
             repository.deleteExtraQuest(extra)
         }
     }
+    fun updateExtraQuest(quest: ExtraQuest) {
+        if (quest.title.isBlank()) return
+        // 編集完了時はシステム音（REQUESTなど）を鳴らすか、控えめにするかはお好みで
+        triggerSound(SoundType.REQUEST)
+        viewModelScope.launch {
+            repository.updateExtraQuest(quest)
+        }
+    }
     fun addQuest(title: String, note: String, dueDate: Long?, repeatMode: Int, category: Int, estimatedTime: Long, subtasks: List<String>) {
         if (title.isBlank()) return
         val exp = rewardCalculator.calculateExp(estimatedTime)
@@ -490,6 +498,13 @@ class MainViewModel(
     fun deleteBreakActivity(activity: BreakActivity){
         triggerSound(SoundType.DELETE)
         viewModelScope.launch { repository.deleteBreakActivity(activity) }
+    }
+    fun updateBreakActivity(activity: BreakActivity) {
+        if (activity.title.isBlank()) return
+        triggerSound(SoundType.REQUEST)
+        viewModelScope.launch {
+            repository.updateBreakActivity(activity)
+        }
     }
 
     private fun updateQuestStartTime(quest: Quest) = viewModelScope.launch {

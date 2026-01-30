@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.example.lifequest.DailyQuestType
 import com.example.lifequest.logic.LocalSoundManager
+import com.example.lifequest.ui.components.CategorySelector
 import com.example.lifequest.ui.components.SoundButton
 import com.example.lifequest.ui.components.SoundTextButton
 import com.example.lifequest.ui.components.soundClickable
@@ -245,6 +246,7 @@ fun QuestEditDialog(
     var note by remember { mutableStateOf(quest.note) }
     var dueDate by remember { mutableStateOf(quest.dueDate) }
     var repeatMode by remember { mutableIntStateOf(quest.repeatMode) }
+    var category by remember { mutableIntStateOf(quest.category) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) } // ★追加
@@ -286,8 +288,8 @@ fun QuestEditDialog(
                             )
                         }
                     }
-                    RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
                 }
+                RepeatSelector(currentMode = repeatMode, onModeSelected = { repeatMode = it })
 
                 TimeInputRow(
                     hours = inputHours,
@@ -296,7 +298,12 @@ fun QuestEditDialog(
                     onMinutesChange = { inputMinutes = it }
                 )
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Spacer(modifier = Modifier.padding(vertical = 8.dp))
+                CategorySelector(
+                    selectedCategory = category,
+                    onCategorySelected = { category = it }
+                )
 
                 Text("サブタスク", style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -343,7 +350,8 @@ fun QuestEditDialog(
                         note = note,
                         dueDate = dueDate,
                         estimatedTime = newEstimated,
-                        repeatMode = repeatMode
+                        repeatMode = repeatMode,
+                        category = category
                     ))
                 },
                 enabled = title.isNotBlank()

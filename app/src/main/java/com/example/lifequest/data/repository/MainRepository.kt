@@ -62,6 +62,9 @@ class MainRepository(
     suspend fun deleteBreakActivity(activity: BreakActivity): Int = withContext(Dispatchers.IO) {
         breakActivityDao.delete(activity)
     }
+    suspend fun updateBreakActivity(activity: BreakActivity) = withContext(Dispatchers.IO) {
+        breakActivityDao.update(activity)
+    }
 
     // --- UserStatus Logic ---
     suspend fun getUserStatusSync(): UserStatus? = withContext(Dispatchers.IO) {
@@ -77,7 +80,7 @@ class MainRepository(
     }
 
     // --- Quest Logic ---
-    // ★修正: 生成されたクエストIDを返すように変更
+    // 生成されたクエストIDを返すように変更
     suspend fun insertQuest(quest: Quest, subtasks: List<String>): Int = withContext(Dispatchers.IO) {
         val questId = questDao.insertQuest(quest).toInt()
         subtasks.forEach { title ->
@@ -137,6 +140,9 @@ class MainRepository(
 
     suspend fun deleteExtraQuest(quest: ExtraQuest) = withContext(Dispatchers.IO) {
         extraQuestDao.delete(quest)
+    }
+    suspend fun updateExtraQuest(quest: ExtraQuest) = withContext(Dispatchers.IO) {
+        extraQuestDao.update(quest)
     }
 
     // --- Allowed App Logic (ホワイトリスト機能) ---

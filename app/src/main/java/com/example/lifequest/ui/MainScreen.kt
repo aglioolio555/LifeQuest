@@ -329,7 +329,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     }
                                 )
                             } else if (isBonusMissionLoading) {
-                                // ★追加: ボーナスミッション準備中のローディング表示
+                                //ボーナスミッション準備中のローディング表示
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
@@ -353,6 +353,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     )
                                 },
                                 onDeleteActivity = { viewModel.deleteBreakActivity(it) },
+                                onUpdateActivity = { viewModel.updateBreakActivity(it) },
                                 onUpdateTargetTimes = { wh, wm, bh, bm ->
                                     viewModel.updateTargetTimes(
                                         wh,
@@ -379,6 +380,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     )
                                 },
                                 onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
+                                onUpdateExtraQuest = { extra -> viewModel.updateExtraQuest(extra) },
                                 onNavigateToWhitelist = {
                                     soundManager.playClick()
                                     currentScreen = Screen.WHITELIST

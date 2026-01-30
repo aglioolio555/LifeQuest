@@ -5,13 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +24,7 @@ import com.example.lifequest.data.local.entity.ExtraQuest
 import com.example.lifequest.ui.components.SoundIconButton
 import com.example.lifequest.ui.components.soundClickable
 import com.example.lifequest.ui.components.CategorySelector
+import com.example.lifequest.ui.components.SoundTextButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,12 +33,14 @@ fun SettingScreen(
     userStatus: UserStatus,
     onAddActivity: (String, String) -> Unit,
     onDeleteActivity: (BreakActivity) -> Unit,
+    onUpdateActivity: (BreakActivity) -> Unit,
     onUpdateTargetTimes: (Int, Int, Int, Int) -> Unit,
     onExportQuestLogs: () -> Unit,
     onExportDailyQuests: () -> Unit,
     extraQuests: List<ExtraQuest> = emptyList(),
     onAddExtraQuest: (String, String, Int,Int) -> Unit = {_,_,_,_ ->},
     onDeleteExtraQuest: (ExtraQuest) -> Unit = {},
+    onUpdateExtraQuest: (ExtraQuest) -> Unit = {},
     onNavigateToWhitelist: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -46,6 +48,9 @@ fun SettingScreen(
     var showExtraAddDialog by remember { mutableStateOf(false) }
     var showWakeUpPicker by remember { mutableStateOf(false) }
     var showBedTimePicker by remember { mutableStateOf(false) }
+
+    var editingActivity by remember { mutableStateOf<BreakActivity?>(null) }
+    var editingExtraQuest by remember { mutableStateOf<ExtraQuest?>(null) }
 
     Scaffold(
         topBar = {
@@ -169,6 +174,11 @@ fun SettingScreen(
                             Text(extra.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text("${extra.estimatedTime / 60000}分 / +${extra.expReward}EXP", style = MaterialTheme.typography.bodySmall)
                         }
+                        //編集ボタン
+                        SoundIconButton(onClick = { editingExtraQuest = extra }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "編集", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
                         SoundIconButton(onClick = { onDeleteExtraQuest(extra) }, modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
                         }
@@ -208,6 +218,11 @@ fun SettingScreen(
                             Text(activity.title, style = MaterialTheme.typography.titleMedium)
                             Text(activity.description, style = MaterialTheme.typography.bodySmall)
                         }
+                        //編集ボタン
+                        SoundIconButton(onClick = { editingActivity = activity }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Edit, contentDescription = "編集", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
                         IconButton(onClick = { onDeleteActivity(activity) },modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
                         }
@@ -268,6 +283,25 @@ fun SettingScreen(
             dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("キャンセル") } }
         )
     }
+    //Edit Activity Dialog
+    if (editingActivity != null) {
+        var title by remember { mutableStateOf(editingActivity!!.title) }
+        var description by remember { mutableStateOf(editingActivity!!.description) }
+        AlertDialog(
+            onDismissRequest = { editingActivity = null },
+            title = { Text("アクティビティの修正") },
+            text = { Column { OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル") }); Spacer(modifier = Modifier.height(8.dp)); OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("詳細") }) } },
+            confirmButton = {
+                SoundTextButton(onClick = {
+                    if (title.isNotBlank()) {
+                        onUpdateActivity(editingActivity!!.copy(title = title, description = description))
+                        editingActivity = null
+                    }
+                }) { Text("保存") }
+            },
+            dismissButton = { SoundTextButton(onClick = { editingActivity = null }) { Text("キャンセル") } }
+        )
+    }
     if (showExtraAddDialog) {
         var title by remember { mutableStateOf("") }
         var desc by remember { mutableStateOf("") }
@@ -297,6 +331,45 @@ fun SettingScreen(
                 }) { Text("追加") }
             },
             dismissButton = { TextButton(onClick = { showExtraAddDialog = false }) { Text("キャンセル") } }
+        )
+    }
+    //Edit ExtraQuest Dialog
+    if (editingExtraQuest != null) {
+        var title by remember { mutableStateOf(editingExtraQuest!!.title) }
+        var desc by remember { mutableStateOf(editingExtraQuest!!.description) }
+        var minutes by remember { mutableStateOf((editingExtraQuest!!.estimatedTime / 60000).toString()) }
+        var category by remember { mutableIntStateOf(editingExtraQuest!!.category) }
+
+        AlertDialog(
+            onDismissRequest = { editingExtraQuest = null },
+            title = { Text("エキストラクエストの修正") },
+            text = {
+                Column {
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("詳細") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = minutes, onValueChange = { if(it.all{c->c.isDigit()}) minutes = it }, label = { Text("目安時間 (分)") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CategorySelector(selectedCategory = category, onCategorySelected = { category = it })
+                }
+            },
+            confirmButton = {
+                SoundTextButton(onClick = {
+                    if (title.isNotBlank()) {
+                        val estTime = (minutes.toIntOrNull() ?: 15) * 60 * 1000L
+                        onUpdateExtraQuest(editingExtraQuest!!.copy(
+                            title = title,
+                            description = desc,
+                            estimatedTime = estTime,
+                            category = category
+                            // expRewardの更新が必要ならViewModelで行うか、ここで行う
+                        ))
+                        editingExtraQuest = null
+                    }
+                }) { Text("保存") }
+            },
+            dismissButton = { SoundTextButton(onClick = { editingExtraQuest = null }) { Text("キャンセル") } }
         )
     }
 }
