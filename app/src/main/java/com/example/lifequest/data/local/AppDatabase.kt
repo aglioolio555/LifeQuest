@@ -16,9 +16,9 @@ import com.example.lifequest.data.local.entity.*
         BreakActivity::class,
         DailyQuestProgress::class,
         ExtraQuest::class,
-        AllowedApp::class // ★今回追加したホワイトリスト用エンティティ
+        AllowedApp::class
     ],
-    version = 2, // ★テーブル構成が変わったためバージョンを 1 -> 2 に変更
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -14,7 +14,7 @@ enum class DailyQuestType(val title: String, val message: String, val icon: Imag
     BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, DailyQuestBedTime),
     FOCUS("集中リミット突破", "驚異的な集中力です！", Icons.Default.Timer, DailyQuestFocus),
     BALANCE("バランスミッション", "新たな領域を制覇しました！", Icons.Default.Balance, DailyQuestBalance),
-    BONUS("ボーナスミッション達成", "自己研鑽への挑戦、素晴らしい！", Icons.Default.Star, DailyQuestBonus);
+    BONUS("エキストラクエスト達成", "自己研鑽への挑戦、素晴らしい！", Icons.Default.Star, DailyQuestBonus);
 }
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {

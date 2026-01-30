@@ -69,15 +69,16 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.secondary
             )
         } else {
-            // ★変更: タスク完了時
+            //タスク完了時
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Column(modifier = Modifier.padding(32.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text("今日の全タスク完了！", fontWeight = FontWeight.Bold)
+                    // テキストをより汎用的に
+                    Text("現在直近のクエストはありません", fontWeight = FontWeight.Bold)
                 }
             }
 
-            // ★追加: ボーナスミッションの提案があれば表示
+            //ボーナスミッションの提案があれば表示
             if (suggestedExtraQuest != null) {
                 Spacer(modifier = Modifier.height(24.dp))
                 BonusMissionCard(

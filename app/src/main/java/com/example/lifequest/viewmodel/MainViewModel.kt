@@ -47,6 +47,7 @@ class MainViewModel(
     companion object {
         private const val CYCLE_BONUS_EXP = 15
         private const val BREAK_ACTIVITY_REWARD = 10
+        private const val URGENT_WINDOW_HOURS = 72 // 3日以内
     }
 
     // --- Logic Components ---
@@ -93,6 +94,34 @@ class MainViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+    // スクリーン「HOME」用: 【優先順位1】推奨クエスト選定ロジック
+    val urgentQuest: StateFlow<QuestWithSubtasks?> = allActiveQuests
+        .map { quests ->
+            val now = System.currentTimeMillis()
+            val limitTime = now + (URGENT_WINDOW_HOURS * 60 * 60 * 1000L)
+
+            // 1. フィルタリング: 期限あり かつ 3日以内
+            val candidates = quests.filter { item ->
+                val due = item.quest.dueDate
+                due != null && due <= limitTime
+            }
+
+            if (candidates.isEmpty()) {
+                null
+            } else {
+                // 2. ソート: 第1キー(期限 昇順) -> 第2キー(実行時間 降順) -> 第3キー(ランダム)
+                // shuffled()でランダム性を担保しつつソート
+                candidates.shuffled().sortedWith(
+                    compareBy<QuestWithSubtasks> { it.quest.dueDate } // 期限が近い順
+                        .thenByDescending { it.quest.accumulatedTime } // 積み上げ時間が多い順
+                ).first()
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
 
     // ★追加: 「未来の待機中クエスト」リスト（明日以降に出現予定のもの）
     val futureQuestList: StateFlow<List<QuestWithSubtasks>> = combine(allActiveQuests, endOfTodayFlow) { quests, endOfToday ->
@@ -106,6 +135,7 @@ class MainViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
 
     val breakActivities: StateFlow<List<BreakActivity>> = repository.allBreakActivities
         .stateIn(
@@ -155,14 +185,12 @@ class MainViewModel(
     val extraQuests: StateFlow<List<ExtraQuest>> = repository.allExtraQuests
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ★追加: ホーム画面に提案するエキストラクエスト
+    // 【優先順位2】エキストラクエストの提案
     private val _suggestedExtraQuest = MutableStateFlow<ExtraQuest?>(null)
     val suggestedExtraQuest: StateFlow<ExtraQuest?> = _suggestedExtraQuest.asStateFlow()
 
-    // ★追加: 現在実行中のクエストがエキストラかどうか
     var isBonusMissionRunning = false
 
-    // ★追加: ボーナスミッション開始処理中のロード状態
     private val _isBonusMissionLoading = MutableStateFlow(false)
     val isBonusMissionLoading: StateFlow<Boolean> = _isBonusMissionLoading.asStateFlow()
 
@@ -173,26 +201,22 @@ class MainViewModel(
             }
         }
 
-        // Timer auto-mode initialization
         viewModelScope.launch {
-            // ここは activeQuests 全体を見て判定しても良いが、表示中のものに合わせるなら questList を使う
-            questList.collect { quests ->
-                val topQuest = quests.firstOrNull()?.quest
-                if (topQuest != null && currentActiveQuestId != topQuest.id) {
-                    currentActiveQuestId = topQuest.id
-                    timerManager.initializeModeBasedOnQuest(topQuest.estimatedTime)
+            // ホーム画面の推奨クエスト(urgentQuest)を監視してタイマーモードやボーナス提案を制御
+            urgentQuest.collect { urgent ->
+                // タイマーモード自動設定
+                if (urgent != null && currentActiveQuestId != urgent.quest.id) {
+                    currentActiveQuestId = urgent.quest.id
+                    timerManager.initializeModeBasedOnQuest(urgent.quest.estimatedTime)
                 }
-            }
-        }
-        viewModelScope.launch {
-            questList.collect { activeQuests ->
-                if (activeQuests.isEmpty()) {
-                    // タスクがない時だけ抽選（まだ抽選していなければ）
+
+                // 【優先順位2】緊急クエストがない場合、ボーナスミッションを提案
+                if (urgent == null) {
                     if (_suggestedExtraQuest.value == null) {
                         _suggestedExtraQuest.value = repository.getRandomExtraQuest()
                     }
                 } else {
-                    // タスクが復活したら提案をクリア
+                    // 緊急クエストがあるなら提案はクリア
                     _suggestedExtraQuest.value = null
                 }
             }
@@ -373,7 +397,7 @@ class MainViewModel(
                 expReward = extra.expReward,
                 estimatedTime = extra.estimatedTime,
                 repeatMode = 0, // リピートなし
-                category = 4,   // その他カテゴリ
+                category = extra.category,   // その他カテゴリ
                 dueDate = System.currentTimeMillis() // 今日
             )
 
@@ -400,7 +424,7 @@ class MainViewModel(
     }
 
     // ★追加: エキストラクエスト管理
-    fun addExtraQuest(title: String, desc: String, minutes: Int) {
+    fun addExtraQuest(title: String, desc: String, minutes: Int,category: Int) {
         if (title.isBlank()) return
         triggerSound(SoundType.REQUEST)
         viewModelScope.launch {
@@ -408,7 +432,8 @@ class MainViewModel(
                 ExtraQuest(
                     title = title,
                     description = desc,
-                    estimatedTime = minutes * 60 * 1000L
+                    estimatedTime = minutes * 60 * 1000L,
+                    category = category
                 )
             )
         }

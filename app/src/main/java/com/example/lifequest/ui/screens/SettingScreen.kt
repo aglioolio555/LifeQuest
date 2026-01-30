@@ -24,6 +24,7 @@ import com.example.lifequest.ui.dialogs.GameTimePickerDialog
 import com.example.lifequest.data.local.entity.ExtraQuest
 import com.example.lifequest.ui.components.SoundIconButton
 import com.example.lifequest.ui.components.soundClickable
+import com.example.lifequest.ui.components.CategorySelector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +37,7 @@ fun SettingScreen(
     onExportQuestLogs: () -> Unit,
     onExportDailyQuests: () -> Unit,
     extraQuests: List<ExtraQuest> = emptyList(),
-    onAddExtraQuest: (String, String, Int) -> Unit = {_,_,_ ->},
+    onAddExtraQuest: (String, String, Int,Int) -> Unit = {_,_,_,_ ->},
     onDeleteExtraQuest: (ExtraQuest) -> Unit = {},
     onNavigateToWhitelist: () -> Unit,
     onBack: () -> Unit
@@ -143,7 +144,7 @@ fun SettingScreen(
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // --- ボーナスミッション設定 ---
+            // --- エキストラクエスト設定 ---
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -151,7 +152,7 @@ fun SettingScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("ボーナスミッション設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("エキストラクエスト設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Text("全タスク完了後にランダム出現", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     }
                     SoundIconButton(onClick = { showExtraAddDialog = true }) {
@@ -271,10 +272,11 @@ fun SettingScreen(
         var title by remember { mutableStateOf("") }
         var desc by remember { mutableStateOf("") }
         var minutes by remember { mutableStateOf("15") }
+        var category by remember { mutableIntStateOf(2) }
 
         AlertDialog(
             onDismissRequest = { showExtraAddDialog = false },
-            title = { Text("ボーナスミッション追加") },
+            title = { Text("エキストラクエスト追加") },
             text = {
                 Column {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("タイトル (例: 読書)") })
@@ -282,12 +284,14 @@ fun SettingScreen(
                     OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("詳細 (任意)") })
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(value = minutes, onValueChange = { if(it.all{c->c.isDigit()}) minutes = it }, label = { Text("目安時間 (分)") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CategorySelector(selectedCategory = category, onCategorySelected = { category = it })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (title.isNotBlank()) {
-                        onAddExtraQuest(title, desc, minutes.toIntOrNull() ?: 15)
+                        onAddExtraQuest(title, desc, minutes.toIntOrNull() ?: 15,category)
                         showExtraAddDialog = false
                     }
                 }) { Text("追加") }

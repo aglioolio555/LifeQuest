@@ -85,6 +85,7 @@ fun MainScreen(viewModel: MainViewModel) {
     // ... (既存の状態取得コード) ...
     val status by viewModel.uiState.collectAsState()
     val quests by viewModel.questList.collectAsState()
+    val urgentQuest by viewModel.urgentQuest.collectAsState()
     val futureQuests by viewModel.futureQuestList.collectAsState()
     val timerState by viewModel.timerState.collectAsState()
     val breakActivities by viewModel.breakActivities.collectAsState()
@@ -97,9 +98,9 @@ fun MainScreen(viewModel: MainViewModel) {
     val extraQuests by viewModel.extraQuests.collectAsState()
     val popupQueue by viewModel.popupQueue.collectAsState()
 
-    // ★追加: ボーナスミッションのロード状態
+    //ボーナスミッションのロード状態
     val isBonusMissionLoading by viewModel.isBonusMissionLoading.collectAsState()
-
+    var focusingQuestId by remember { mutableStateOf<Int?>(null) }
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
     val activity = context as? MainActivity
@@ -215,7 +216,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             // ... (HomeScreen呼び出し)
                             HomeScreen(
                                 status = status,
-                                urgentQuestData = quests.firstOrNull(),
+                                urgentQuestData = urgentQuest,
                                 suggestedExtraQuest = suggestedExtraQuest,
                                 onStartBonusMission = { extra ->
                                     viewModel.startBonusMission(extra, soundManager)
@@ -231,6 +232,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onEdit = { editingQuestData = it },
                                 onToggleTimer = { quest ->
                                     if (!timerState.isRunning) {
+                                        focusingQuestId = quest.id
                                         viewModel.toggleTimer(quest, soundManager)
                                         activity?.startPinning()
                                     }
@@ -252,6 +254,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                 currentTime = currentTime,
                                 onEdit = { editingQuestData = it },
                                 onToggleTimer = { quest ->
+                                    focusingQuestId = quest.id
                                     viewModel.toggleTimer(quest, soundManager)
                                     activity?.startPinning()
                                     currentScreen = Screen.FOCUS
@@ -283,7 +286,11 @@ fun MainScreen(viewModel: MainViewModel) {
                         }
                         // ... (FOCUS, STATISTICS, SETTINGS も同様に) ...
                         Screen.FOCUS -> {
-                            val activeQuest = quests.firstOrNull()
+                            // リストの先頭ではなく、選択されたIDのクエストを探す
+                            // IDが指定されていない、または見つからない場合は、バックアップとして「実行中のクエスト」または「リストの先頭」を使う
+                            val activeQuest = quests.find { it.quest.id == focusingQuestId }
+                                ?: quests.find { it.quest.lastStartTime != null } // 実行中のものを優先
+                                ?: quests.firstOrNull() // それでもなければ先頭
                             if (activeQuest != null) {
                                 FocusScreen(
                                     questWithSubtasks = activeQuest,
@@ -302,6 +309,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     onComplete = {
                                         soundManager.playCoinSound()
                                         viewModel.completeQuest(activeQuest.quest)
+                                        focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
                                     onSubtaskToggle = { viewModel.toggleSubtask(it) },
@@ -310,6 +318,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                             activeQuest.quest,
                                             soundManager
                                         )
+                                        focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
                                     onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
@@ -361,11 +370,12 @@ fun MainScreen(viewModel: MainViewModel) {
                                     exportLauncher.launch("daily_quests_backup.csv")
                                 },
                                 extraQuests = extraQuests,
-                                onAddExtraQuest = { title, desc, minutes ->
+                                onAddExtraQuest = { title, desc, minutes,category ->
                                     viewModel.addExtraQuest(
                                         title,
                                         desc,
-                                        minutes
+                                        minutes,
+                                        category
                                     )
                                 },
                                 onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
