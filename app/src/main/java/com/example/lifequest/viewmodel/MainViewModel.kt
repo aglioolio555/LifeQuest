@@ -4,9 +4,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.example.lifequest.DailyQuestType
 import com.example.lifequest.FocusMode
-import com.example.lifequest.RepeatMode // 追加
+import com.example.lifequest.RepeatMode
 import com.example.lifequest.data.local.entity.AllowedApp
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.logic.FocusTimerManager
@@ -25,13 +27,13 @@ import com.example.lifequest.data.local.entity.ExtraQuest
 import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.model.StatisticsData
 import com.example.lifequest.utils.UsageStatsHelper
-import com.example.lifequest.utils.formatDate // 追加
-import kotlinx.coroutines.delay // 追加
+import com.example.lifequest.utils.formatDate
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.example.lifequest.logic.LifeQuestNotificationManager
-import kotlinx.coroutines.channels.Channel // 追加
+import kotlinx.coroutines.channels.Channel
 
 data class DailyQuestEvent(
     val type: DailyQuestType,
@@ -41,7 +43,6 @@ data class DailyQuestEvent(
 class MainViewModel(
     private val repository: MainRepository,
     private val usageStatsHelper: UsageStatsHelper,
-    private val timerManager: FocusTimerManager = FocusTimerManager()
 ) : ViewModel() {
 
     companion object {
@@ -65,7 +66,7 @@ class MainViewModel(
             initialValue = UserStatus()
         )
 
-    // ★変更: 今日の終わり（判定基準）を定期的に更新するFlow
+    //今日の終わり（判定基準）を定期的に更新するFlow
     private val endOfTodayFlow = flow {
         while (true) {
             val calendar = Calendar.getInstance()
@@ -147,7 +148,8 @@ class MainViewModel(
     private val _currentBreakActivity = MutableStateFlow<BreakActivity?>(null)
     val currentBreakActivity: StateFlow<BreakActivity?> = _currentBreakActivity.asStateFlow()
 
-    val timerState = timerManager.timerState
+    //シングルトンの FocusTimerManager を参照
+    val timerState = FocusTimerManager.timerState
 
     val statistics: StateFlow<StatisticsData> = repository.questLogs
         .map { logs -> statisticsCalculator.calculate(logs) }
@@ -207,7 +209,7 @@ class MainViewModel(
                 // タイマーモード自動設定
                 if (urgent != null && currentActiveQuestId != urgent.quest.id) {
                     currentActiveQuestId = urgent.quest.id
-                    timerManager.initializeModeBasedOnQuest(urgent.quest.estimatedTime)
+                    FocusTimerManager.initializeModeBasedOnQuest(urgent.quest.estimatedTime)
                 }
 
                 // 【優先順位2】緊急クエストがない場合、ボーナスミッションを提案
@@ -289,7 +291,7 @@ class MainViewModel(
 
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
         if (timerState.value.isRunning) {
-            timerManager.stopTimer()
+            FocusTimerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
             triggerSound(SoundType.TIMER_PAUSE)
         } else {
@@ -298,14 +300,17 @@ class MainViewModel(
             //
             updateQuestStartTime(quest)
             triggerSound(SoundType.TIMER_START)
-            timerManager.startTimer(
-                scope = viewModelScope,
+            //ProcessLifecycleOwner.lifecycleScope を使用
+            // これにより、ViewModelが破棄されても（バックグラウンドに回っても）タイマーコルーチンは動き続ける
+            val appScope = ProcessLifecycleOwner.get().lifecycleScope
+            FocusTimerManager.startTimer(
+                scope = appScope,
                 onFinish = { handleTimerFinish(quest) }
             )
         }
     }
 
-    fun toggleTimerMode() = timerManager.toggleMode()
+    fun toggleTimerMode() = FocusTimerManager.toggleMode()
 
     private fun handleTimerFinish(quest: Quest) {
         updateQuestAccumulatedTime(quest)
@@ -323,19 +328,19 @@ class MainViewModel(
                 }
             }
         }
-
+        val appScope = ProcessLifecycleOwner.get().lifecycleScope
         if (!timerState.value.isBreak) {
             shuffleBreakActivity()
-            timerManager.startBreak(
-                scope = viewModelScope,
+            FocusTimerManager.startBreak(
+                scope = appScope,
                 onFinish = {
                     triggerSound(SoundType.TIMER_FINISH)
-                    timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                    FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
                     _currentBreakActivity.value = null
                 }
             )
         } else {
-            timerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+            FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
             _currentBreakActivity.value = null
         }
     }
@@ -345,7 +350,7 @@ class MainViewModel(
 
     // ★修正: completeQuest を拡張してボーナスミッション対応
     fun completeQuest(quest: Quest) {
-        timerManager.stopTimer()
+        FocusTimerManager.stopTimer()
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
 
@@ -410,7 +415,7 @@ class MainViewModel(
 
             // 既存タイマー停止＆新クエストで開始
             if (timerState.value.isRunning) {
-                timerManager.stopTimer()
+                FocusTimerManager.stopTimer()
             }
             toggleTimer(insertedQuest, soundManager)
 

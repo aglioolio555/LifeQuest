@@ -77,7 +77,7 @@ fun BonusMissionCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "BONUS MISSION",
+                        text = "エキストラクエスト",
                         style = MaterialTheme.typography.titleMedium.copy(
                             brush = gradientBrush
                         ),

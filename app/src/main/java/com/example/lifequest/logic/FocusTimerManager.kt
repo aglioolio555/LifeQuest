@@ -20,76 +20,74 @@ data class TimerState(
     val isBreak: Boolean = false
 )
 
-class FocusTimerManager {
+object FocusTimerManager {
 
     private val _timerState = MutableStateFlow(TimerState())
     val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
 
     private var timerJob: Job? = null
 
-    companion object {
-        private const val ONE_HOUR_MILLIS = 60 * 60 * 1000L
-        private const val ONE_SECOND_MILLIS = 1000L
-    }
-
-    // --- 初期化・設定 ---
-
-    // クエストの目安時間に基づいてモードを自動設定（タイマー停止中のみ）
-    fun initializeModeBasedOnQuest(estimatedTime: Long) {
-        if (_timerState.value.isRunning) return
-
-        val mode = if (estimatedTime < ONE_HOUR_MILLIS) FocusMode.RUSH else FocusMode.DEEP_DIVE
-        resetTimerToMode(mode)
-    }
-
-    // 手動モード切り替え
+    // モード切り替え
     fun toggleMode() {
-        if (_timerState.value.isRunning) return
-        val nextMode = _timerState.value.mode.next()
-        resetTimerToMode(nextMode)
-    }
+        if (_timerState.value.isRunning) return // 実行中は変更不可
 
-    private fun resetTimerToMode(mode: FocusMode) {
-        val seconds = mode.minutes * 60L
+        val currentModes = FocusMode.entries
+        val nextIndex = (_timerState.value.mode.ordinal + 1) % currentModes.size
+        val nextMode = currentModes[nextIndex]
+
         _timerState.value = _timerState.value.copy(
-            mode = mode,
-            initialSeconds = seconds,
-            remainingSeconds = seconds,
-            isBreak = false,
-            isRunning = false
+            mode = nextMode,
+            initialSeconds = nextMode.minutes * 60L,
+            remainingSeconds = nextMode.minutes * 60L
         )
     }
 
-    // --- タイマー制御 ---
+    // クエストの予想時間に基づいてモードを初期化
+    fun initializeModeBasedOnQuest(estimatedTimeMillis: Long) {
+        if (!_timerState.value.isRunning && !_timerState.value.isBreak) {
+            if (estimatedTimeMillis == 0L) {
+                _timerState.value = _timerState.value.copy(
+                    mode = FocusMode.COUNT_UP,
+                    initialSeconds = 0,
+                    remainingSeconds = 0
+                )
+            } else {
+                _timerState.value = _timerState.value.copy(
+                    mode = FocusMode.RUSH,
+                    initialSeconds = FocusMode.RUSH.minutes * 60L,
+                    remainingSeconds = FocusMode.RUSH.minutes * 60L
+                )
+            }
+        }
+    }
 
-    fun startTimer(scope: CoroutineScope, onTick: () -> Unit = {}, onFinish: () -> Unit) {
-        if (_timerState.value.isRunning) return
+    // ★変更: 外部からスコープを受け取れるようにする
+    fun startTimer(scope: CoroutineScope, onFinish: () -> Unit) {
+        if (timerJob?.isActive == true) return
 
         _timerState.value = _timerState.value.copy(isRunning = true)
 
-        timerJob = scope.launch(Dispatchers.Default) {
-            while (isActive) {
-                delay(ONE_SECOND_MILLIS)
-                onTick()
+        timerJob = scope.launch {
+            val mode = _timerState.value.mode
 
-                val currentState = _timerState.value
-
-                // カウントアップモードの場合は時間経過のみ（UI側で計算するためState操作なしでも良いが、一応保持）
-                if (currentState.mode == FocusMode.COUNT_UP) {
-                    continue
-                }
-
-                // カウントダウン処理
-                if (currentState.remainingSeconds > 0) {
-                    _timerState.value = currentState.copy(
-                        remainingSeconds = currentState.remainingSeconds - 1
+            if (mode == FocusMode.COUNT_UP) {
+                // カウントアップ
+                while (true) {
+                    delay(1000L)
+                    _timerState.value = _timerState.value.copy(
+                        remainingSeconds = _timerState.value.remainingSeconds + 1
                     )
-                } else {
-                    // タイマー終了
-                    stopTimer()
-                    onFinish()
-                    break
                 }
+            } else {
+                // カウントダウン
+                while (_timerState.value.remainingSeconds > 0) {
+                    delay(1000L)
+                    _timerState.value = _timerState.value.copy(
+                        remainingSeconds = _timerState.value.remainingSeconds - 1
+                    )
+                }
+                stopTimer()
+                onFinish()
             }
         }
     }
@@ -100,32 +98,28 @@ class FocusTimerManager {
         _timerState.value = _timerState.value.copy(isRunning = false)
     }
 
-    // 休憩モードを開始
     fun startBreak(scope: CoroutineScope, onFinish: () -> Unit) {
-        val currentMode = _timerState.value.mode
-        val breakMinutes = currentMode.breakMinutes
-        val breakSeconds = breakMinutes * 60L
+        if (timerJob?.isActive == true) return
+
+        val breakDuration = 5 * 60L
 
         _timerState.value = _timerState.value.copy(
-            remainingSeconds = breakSeconds,
-            initialSeconds = breakSeconds,
-            isBreak = true,
             isRunning = true,
-            mode = FocusMode.BREAK
+            isBreak = true,
+            initialSeconds = breakDuration,
+            remainingSeconds = breakDuration
         )
 
-        timerJob = scope.launch(Dispatchers.Default) {
-            while (isActive && _timerState.value.remainingSeconds > 0) {
-                delay(ONE_SECOND_MILLIS)
+        timerJob = scope.launch {
+            while (_timerState.value.remainingSeconds > 0) {
+                delay(1000L)
                 _timerState.value = _timerState.value.copy(
                     remainingSeconds = _timerState.value.remainingSeconds - 1
                 )
             }
-            if (_timerState.value.remainingSeconds <= 0L) {
-                stopTimer()
-                _timerState.value = _timerState.value.copy(isBreak = false)
-                onFinish()
-            }
+            stopTimer()
+            _timerState.value = _timerState.value.copy(isBreak = false)
+            onFinish()
         }
     }
 }
