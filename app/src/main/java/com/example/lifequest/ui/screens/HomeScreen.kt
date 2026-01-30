@@ -50,7 +50,7 @@ fun HomeScreen(
 
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("⚠️ CURRENT OBJECTIVE ⚠️", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text("最優先クエスト", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
 
         if (urgentQuestData != null) {

@@ -174,9 +174,9 @@ fun SettingScreen(
                     }
                 }
             }
-            if (extraQuests.isEmpty()) {
-                item { Text("登録なし", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp)) }
-            }
+//            if (extraQuests.isEmpty()) {
+//                item { Text("登録なし", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp)) }
+//            }
 
             item {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
@@ -222,17 +222,18 @@ fun SettingScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .soundClickable { onNavigateToWhitelist() }
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .soundClickable { onNavigateToWhitelist() },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
                         Text("アプリホワイトリスト設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Text("集中モード中に使用を許可するアプリ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     }
-                    Icon(Icons.Default.ArrowForward, contentDescription = null)
+                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
+
 
             // 下部の余白確保
             item { Spacer(modifier = Modifier.height(80.dp)) }
