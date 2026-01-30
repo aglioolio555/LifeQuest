@@ -61,7 +61,7 @@ object FocusTimerManager {
         }
     }
 
-    // ★変更: 外部からスコープを受け取れるようにする
+    //外部からスコープを受け取れるようにする
     fun startTimer(scope: CoroutineScope, onFinish: () -> Unit) {
         if (timerJob?.isActive == true) return
 

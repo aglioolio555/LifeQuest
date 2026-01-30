@@ -10,7 +10,7 @@ data class UserStatus(
     @PrimaryKey val id: Int = 0,
     val level: Int = 1,
     val experience: Int = 0,
-    // ★追加: デイリークエスト設定用 (デフォルト 7:00 起床, 23:00 就寝)
+    //デイリークエスト設定用 (デフォルト 7:00 起床, 23:00 就寝)
     val targetWakeUpHour: Int = 7,
     val targetWakeUpMinute: Int = 0,
     val targetBedTimeHour: Int = 23,

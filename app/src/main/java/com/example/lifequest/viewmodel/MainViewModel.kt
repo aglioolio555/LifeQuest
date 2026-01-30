@@ -294,12 +294,17 @@ class MainViewModel(
             FocusTimerManager.stopTimer()
             updateQuestAccumulatedTime(quest)
             triggerSound(SoundType.TIMER_PAUSE)
+            triggerSound(SoundType.BGM_PAUSE)
         } else {
             //to-do本当に必要か？
             updateQuestAccumulatedTime(quest)
             //
             updateQuestStartTime(quest)
             triggerSound(SoundType.TIMER_START)
+            //BGM開始（初回）または再開
+            // 念のため両方送ることで「未再生なら開始」「停止中なら再開」をカバーします
+            triggerSound(SoundType.BGM_START)
+            triggerSound(SoundType.BGM_RESUME)
             //ProcessLifecycleOwner.lifecycleScope を使用
             // これにより、ViewModelが破棄されても（バックグラウンドに回っても）タイマーコルーチンは動き続ける
             val appScope = ProcessLifecycleOwner.get().lifecycleScope
@@ -315,6 +320,8 @@ class MainViewModel(
     private fun handleTimerFinish(quest: Quest) {
         updateQuestAccumulatedTime(quest)
         triggerSound(SoundType.TIMER_FINISH)
+        //BGM停止
+        triggerSound(SoundType.BGM_STOP)
         grantExp(CYCLE_BONUS_EXP)
 
         val sessionTime = if(timerState.value.mode == FocusMode.COUNT_UP) 0L else timerState.value.initialSeconds * 1000
@@ -344,13 +351,25 @@ class MainViewModel(
             _currentBreakActivity.value = null
         }
     }
+    // 集中モードを終了する（ホームに戻る時など）
+    fun stopSession(quest: Quest) {
+        // タイマーが動いていれば止める
+        if (timerState.value.isRunning) {
+            FocusTimerManager.stopTimer()
+            updateQuestAccumulatedTime(quest)
+            triggerSound(SoundType.TIMER_PAUSE)
+        }
 
+        //BGMを完全に停止（これにより次回は再抽選される）
+        triggerSound(SoundType.BGM_STOP)
+    }
 
     // --- CRUD & Helper Wrappers ---
 
     //completeQuest を拡張してボーナスミッション対応
     fun completeQuest(quest: Quest) {
         FocusTimerManager.stopTimer()
+        triggerSound(SoundType.BGM_STOP)
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
 
@@ -520,7 +539,20 @@ class MainViewModel(
     }
 
     private fun grantExp(amount: Int) = viewModelScope.launch {
-        repository.getUserStatusSync()?.let { repository.updateUserStatus(it.addExperience(amount)) }
+        val currentStatus = repository.getUserStatusSync() ?: return@launch
+        // 新しいステータスを計算
+        val newStatus = currentStatus.addExperience(amount)
+
+        // レベルが上昇していたら、レベルアップ音イベントを送信
+        if (newStatus.level > currentStatus.level) {
+            triggerSound(SoundType.LEVEL_UP)
+
+            // もしレベルアップダイアログなどを出す場合はここでPopupQueueに追加する処理などを記述
+            // addToPopupQueue(DailyQuestType.LEVEL_UP, 0) // 例
+        }
+
+        // DB更新
+        repository.updateUserStatus(newStatus)
     }
 
     fun addSubtask(questId: Int, title: String) = viewModelScope.launch { repository.insertSubtask(questId, title) }

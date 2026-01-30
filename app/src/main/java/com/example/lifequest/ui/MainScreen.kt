@@ -141,12 +141,6 @@ fun MainScreen(viewModel: MainViewModel) {
             delay(1000L)
         }
     }
-    // ★レベルアップ検知 & SE再生
-    LaunchedEffect(status.level) {
-        if (status.level > 1) { // 初回起動時などを除く
-            soundManager.playLevelUp()
-        }
-    }
     //サブタスク追加等の変更を即座にダイアログに反映させるための同期処理
     LaunchedEffect(quests, futureQuests) {
         editingQuestData?.let { current ->
@@ -239,7 +233,6 @@ fun MainScreen(viewModel: MainViewModel) {
                                     currentScreen = Screen.FOCUS
                                 },
                                 onComplete = { quest ->
-                                    soundManager.playCoinSound()
                                     viewModel.completeQuest(quest)
                                 },
                                 onSubtaskToggle = { viewModel.toggleSubtask(it) },
@@ -260,7 +253,6 @@ fun MainScreen(viewModel: MainViewModel) {
                                     currentScreen = Screen.FOCUS
                                 },
                                 onComplete = { quest ->
-                                    soundManager.playCoinSound()
                                     viewModel.completeQuest(quest)
                                 },
                                 onDelete = { viewModel.deleteQuest(it) },
@@ -307,17 +299,13 @@ fun MainScreen(viewModel: MainViewModel) {
                                     },
                                     onModeToggle = { viewModel.toggleTimerMode() },
                                     onComplete = {
-                                        soundManager.playCoinSound()
                                         viewModel.completeQuest(activeQuest.quest)
                                         focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
                                     onSubtaskToggle = { viewModel.toggleSubtask(it) },
                                     onExit = {
-                                        if (timerState.isRunning) viewModel.toggleTimer(
-                                            activeQuest.quest,
-                                            soundManager
-                                        )
+                                        viewModel.stopSession(activeQuest.quest)
                                         focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
@@ -420,7 +408,6 @@ fun MainScreen(viewModel: MainViewModel) {
                 type = currentEvent.type,
                 expEarned = currentEvent.expEarned,
                 onDismiss = {
-                    soundManager.playCoinSound()
                     viewModel.dismissCurrentPopup()
                 }
             )
