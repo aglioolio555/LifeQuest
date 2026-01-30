@@ -83,13 +83,26 @@ fun QuestListContent(
                 SwipeToDismissBox(
                     state = dismissState,
                     backgroundContent = {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 20.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "削除", tint = MaterialTheme.colorScheme.error)
+                        val isDeleting = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+
+                        if (isDeleting) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    // 削除時の背景色を少し付けるとより分かりやすくなります（任意）
+                                    // .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
+                                    .padding(horizontal = 20.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "削除",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            // スワイプしていない時は何も表示しない（透明）
+                            Spacer(modifier = Modifier.fillMaxSize())
                         }
                     },
                     content = {
