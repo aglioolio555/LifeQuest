@@ -227,8 +227,8 @@ fun SettingScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("アプリホワイトリスト設定", style = MaterialTheme.typography.titleMedium)
-                        Text("集中モード中に使用を許可するアプリ", style = MaterialTheme.typography.bodySmall)
+                        Text("アプリホワイトリスト設定", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("集中モード中に使用を許可するアプリ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     }
                     Icon(Icons.Default.ArrowForward, contentDescription = null)
                 }

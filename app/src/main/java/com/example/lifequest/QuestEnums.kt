@@ -18,10 +18,10 @@ enum class DailyQuestType(val title: String, val message: String, val icon: Imag
 }
 // カテゴリ定義
 enum class QuestCategory(val id: Int, val label: String, val icon: ImageVector, val color: Color) {
-    WORK(0, "仕事", Icons.Default.Work, QuestCategoryWork),
+    WORK(0, "タスク", Icons.Default.Task, QuestCategoryTask),
     HEALTH(1, "健康", Icons.Default.Favorite, QuestCategoryHealth),
-    LEARNING(2, "学習", Icons.Default.School, QuestCategoryLearn),
-    HOBBY(3, "趣味", Icons.Default.Palette, QuestCategoryHobby),
+    LEARNING(2, "成長", Icons.Default.School, QuestCategoryLearn),
+    HOBBY(3, "人間関係", Icons.Default.Groups, QuestCategoryRelation),
     OTHER(4, "その他", Icons.Default.MoreHoriz, QuestCategoryOther);
 
     companion object {

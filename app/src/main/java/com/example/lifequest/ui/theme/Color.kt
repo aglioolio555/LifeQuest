@@ -52,10 +52,10 @@ val TechNoirErrorContainer = Color(0xFF3E1000)
 val TechNoirOnErrorContainer = Color(0xFFFF3D00)
 
 // --- Quest Category Colors (Neon Style) ---
-val QuestCategoryWork = Color(0xFF2196F3)    // Blue Neon
+val QuestCategoryTask = Color(0xFFFF4081)    // Blue Neon
 val QuestCategoryHealth = Color(0xFF00E676)  // Green Neon
 val QuestCategoryLearn = Color(0xFFFFC400)   // Amber Neon
-val QuestCategoryHobby = Color(0xFFFF4081)   // Pink Neon
+val QuestCategoryRelation = Color(0xFF2196F3)   // Pink Neon
 val QuestCategorySocial = Color(0xFFE040FB)  // Purple Neon
 val QuestCategoryOther = Color(0xFFB0BEC5)   // Grey Neon
 

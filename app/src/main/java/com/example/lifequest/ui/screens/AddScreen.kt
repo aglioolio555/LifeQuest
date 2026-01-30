@@ -27,7 +27,7 @@ fun AddQuestScreen(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = "NEW QUEST_ENTRY",
+            text = "新規クエスト",
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 16.dp)
