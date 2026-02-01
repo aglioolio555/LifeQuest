@@ -71,22 +71,15 @@ object FocusTimerManager {
     fun initializeModeBasedOnQuest(estimatedTimeMillis: Long) {
         // IDLE以外のときは初期化しない（実行中やポーズ中の誤操作防止）
         if (_timerState.value.status != TimerStatus.IDLE) return
+        val rush = FocusMode.RUSH
+        val targetMode = if (estimatedTimeMillis < 2*(rush.minutes+rush.breakMinutes) *SECONDS_PER_MINUTE* ONE_SECOND_MILLIS) FocusMode.RUSH else FocusMode.DEEP_DIVE
 
-        if (estimatedTimeMillis == 0L) {
-            _timerState.value = _timerState.value.copy(
-                mode = FocusMode.COUNT_UP,
-                initialSeconds = 0,
-                remainingSeconds = 0,
-                status = TimerStatus.IDLE
-            )
-        } else {
-            _timerState.value = _timerState.value.copy(
-                mode = FocusMode.RUSH,
-                initialSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
-                remainingSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
-                status = TimerStatus.IDLE
-            )
-        }
+        _timerState.value = _timerState.value.copy(
+            mode = targetMode,
+            initialSeconds = targetMode.minutes * SECONDS_PER_MINUTE,
+            remainingSeconds = targetMode.minutes * SECONDS_PER_MINUTE,
+            status = TimerStatus.IDLE
+        )
     }
 
     // 集中タイマー開始・再開
