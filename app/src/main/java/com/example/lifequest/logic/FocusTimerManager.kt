@@ -12,20 +12,38 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // 定数定義
-//todo delete underline
+//todo delete underline if application is completed
 private const val SECONDS_PER_MINUTE = 1L
 //private const val SECONDS_PER_MINUTE = 60L
 private const val ONE_SECOND_MILLIS = 1000L
 private const val DEFAULT_BREAK_DURATION_MINUTES = 5L
+
+// タイマーの詳細なステータス
+enum class TimerStatus {
+    IDLE,           // 待機中（初期状態・完了後）
+    FOCUS,          // 集中モード実行中
+    PAUSE_FOCUS,    // 集中モード一時停止中
+    BREAK,          // 休憩モード実行中
+    PAUSE_BREAK     // 休憩モード一時停止中
+}
 
 // タイマーの状態
 data class TimerState(
     val mode: FocusMode = FocusMode.RUSH,
     val initialSeconds: Long = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
     val remainingSeconds: Long = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
-    val isRunning: Boolean = false,
-    val isBreak: Boolean = false
-)
+    val status: TimerStatus = TimerStatus.IDLE
+) {
+    // UI互換性のためのヘルパープロパティ
+    val isRunning: Boolean
+        get() = status == TimerStatus.FOCUS || status == TimerStatus.BREAK
+
+    val isBreak: Boolean
+        get() = status == TimerStatus.BREAK || status == TimerStatus.PAUSE_BREAK
+
+    val isPaused: Boolean
+        get() = status == TimerStatus.PAUSE_FOCUS || status == TimerStatus.PAUSE_BREAK
+}
 
 object FocusTimerManager {
 
@@ -34,9 +52,9 @@ object FocusTimerManager {
 
     private var timerJob: Job? = null
 
-    // モード切り替え
+    // モード切り替え（IDLE時のみ可能）
     fun toggleMode() {
-        if (_timerState.value.isRunning) return // 実行中は変更不可
+        if (_timerState.value.status != TimerStatus.IDLE) return
 
         val currentModes = FocusMode.entries
         val nextIndex = (_timerState.value.mode.ordinal + 1) % currentModes.size
@@ -49,30 +67,39 @@ object FocusTimerManager {
         )
     }
 
-    // クエストの予想時間に基づいてモードを初期化
+    // クエストの予想時間に基づいてモードを初期化（IDLE時のみ）
     fun initializeModeBasedOnQuest(estimatedTimeMillis: Long) {
-        if (!_timerState.value.isRunning && !_timerState.value.isBreak) {
-            if (estimatedTimeMillis == 0L) {
-                _timerState.value = _timerState.value.copy(
-                    mode = FocusMode.COUNT_UP,
-                    initialSeconds = 0,
-                    remainingSeconds = 0
-                )
-            } else {
-                _timerState.value = _timerState.value.copy(
-                    mode = FocusMode.RUSH,
-                    initialSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
-                    remainingSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE
-                )
-            }
+        // IDLE以外のときは初期化しない（実行中やポーズ中の誤操作防止）
+        if (_timerState.value.status != TimerStatus.IDLE) return
+
+        if (estimatedTimeMillis == 0L) {
+            _timerState.value = _timerState.value.copy(
+                mode = FocusMode.COUNT_UP,
+                initialSeconds = 0,
+                remainingSeconds = 0,
+                status = TimerStatus.IDLE
+            )
+        } else {
+            _timerState.value = _timerState.value.copy(
+                mode = FocusMode.RUSH,
+                initialSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
+                remainingSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
+                status = TimerStatus.IDLE
+            )
         }
     }
 
-    //外部からスコープを受け取れるようにする
+    // 集中タイマー開始・再開
     fun startTimer(scope: CoroutineScope, onFinish: () -> Unit) {
         if (timerJob?.isActive == true) return
 
-        _timerState.value = _timerState.value.copy(isRunning = true)
+        val currentStatus = _timerState.value.status
+
+        // 休憩中や休憩ポーズ中は開始できない（明示的に終了させる必要がある）
+        if (currentStatus == TimerStatus.BREAK || currentStatus == TimerStatus.PAUSE_BREAK) return
+
+        // IDLEまたはPAUSE_FOCUSからFOCUSへ遷移
+        _timerState.value = _timerState.value.copy(status = TimerStatus.FOCUS)
 
         timerJob = scope.launch {
             val mode = _timerState.value.mode
@@ -93,29 +120,62 @@ object FocusTimerManager {
                         remainingSeconds = _timerState.value.remainingSeconds - 1
                     )
                 }
-                stopTimer()
+                // 完了時処理
+                finishTimer()
                 onFinish()
             }
         }
     }
 
+    // タイマー一時停止（FOCUS -> PAUSE_FOCUS, BREAK -> PAUSE_BREAK）
     fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
-        _timerState.value = _timerState.value.copy(isRunning = false)
+
+        val newStatus = when (_timerState.value.status) {
+            TimerStatus.FOCUS -> TimerStatus.PAUSE_FOCUS
+            TimerStatus.BREAK -> TimerStatus.PAUSE_BREAK
+            else -> _timerState.value.status // IDLE等の場合はそのまま
+        }
+
+        _timerState.value = _timerState.value.copy(status = newStatus)
     }
 
+    // セッション強制終了・リセット（IDLEに戻す）
+    fun resetTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _timerState.value = _timerState.value.copy(status = TimerStatus.IDLE)
+    }
+
+    // 内部的な完了処理
+    private fun finishTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        // 完了後はIDLEに戻す（休憩への遷移はViewModel側でstartBreakを呼ぶことで制御する想定）
+        _timerState.value = _timerState.value.copy(status = TimerStatus.IDLE)
+    }
+
+    // 休憩タイマー開始・再開
     fun startBreak(scope: CoroutineScope, onFinish: () -> Unit) {
         if (timerJob?.isActive == true) return
 
-        val breakDuration = DEFAULT_BREAK_DURATION_MINUTES * SECONDS_PER_MINUTE
+        val currentStatus = _timerState.value.status
 
-        _timerState.value = _timerState.value.copy(
-            isRunning = true,
-            isBreak = true,
-            initialSeconds = breakDuration,
-            remainingSeconds = breakDuration
-        )
+        // 集中モード中は開始できない
+        if (currentStatus == TimerStatus.FOCUS || currentStatus == TimerStatus.PAUSE_FOCUS) return
+
+        // 初期設定（IDLEから開始する場合のみ時間をセット）
+        if (currentStatus == TimerStatus.IDLE) {
+            val breakDuration = DEFAULT_BREAK_DURATION_MINUTES * SECONDS_PER_MINUTE
+            _timerState.value = _timerState.value.copy(
+                initialSeconds = breakDuration,
+                remainingSeconds = breakDuration
+            )
+        }
+
+        // BREAKへ遷移
+        _timerState.value = _timerState.value.copy(status = TimerStatus.BREAK)
 
         timerJob = scope.launch {
             while (_timerState.value.remainingSeconds > 0) {
@@ -124,8 +184,7 @@ object FocusTimerManager {
                     remainingSeconds = _timerState.value.remainingSeconds - 1
                 )
             }
-            stopTimer()
-            _timerState.value = _timerState.value.copy(isBreak = false)
+            finishTimer() // 完了したらIDLEへ
             onFinish()
         }
     }

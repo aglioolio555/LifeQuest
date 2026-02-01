@@ -14,6 +14,7 @@ import com.example.lifequest.data.local.entity.Quest
 import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.logic.DailyQuestManager
 import com.example.lifequest.logic.FocusTimerManager
+import com.example.lifequest.logic.TimerStatus
 import com.example.lifequest.logic.LifeQuestNotificationManager
 import com.example.lifequest.logic.QuestCompletionService
 import com.example.lifequest.logic.SoundManager
@@ -74,7 +75,8 @@ class FocusViewModel(
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        if (timerState.value.isRunning) {
+        // 集中モード実行中（FOCUS）の場合のみ通知を出す（休憩中や一時停止中は出さない）
+        if (timerState.value.status == TimerStatus.FOCUS) {
             _isInterrupted.value = true
             // 現在のクエスト名は取得できないため汎用メッセージ（本来はQuest情報を持つべきだが簡易化）
             notificationManager?.showReturnNotification("クエスト進行中")
@@ -91,31 +93,62 @@ class FocusViewModel(
 
     // --- Timer Control ---
     fun toggleTimer(quest: Quest, soundManager: SoundManager? = null) {
-        if (timerState.value.isRunning) {
-            FocusTimerManager.stopTimer()
-            updateQuestAccumulatedTime(quest)
-            triggerSound(SoundType.TIMER_PAUSE)
-            triggerSound(SoundType.BGM_PAUSE)
-        } else {
-            updateQuestAccumulatedTime(quest)
-            updateQuestStartTime(quest)
-            triggerSound(SoundType.TIMER_START)
-            triggerSound(SoundType.BGM_START)
-            triggerSound(SoundType.BGM_RESUME)
+        val currentStatus = timerState.value.status
 
-            val appScope = ProcessLifecycleOwner.get().lifecycleScope
-            FocusTimerManager.startTimer(
-                scope = appScope,
-                onFinish = { handleTimerFinish(quest) }
-            )
+        when (currentStatus) {
+            TimerStatus.FOCUS -> {
+                // 集中モード実行中 -> 一時停止
+                FocusTimerManager.stopTimer()
+                updateQuestAccumulatedTime(quest)
+                triggerSound(SoundType.TIMER_PAUSE)
+                triggerSound(SoundType.BGM_PAUSE)
+            }
+            TimerStatus.IDLE, TimerStatus.PAUSE_FOCUS -> {
+                // 待機中 または 一時停止中 -> 開始/再開
+                updateQuestAccumulatedTime(quest) // 念のため経過時間を保存
+                updateQuestStartTime(quest) // lastStartTimeを更新
+
+                triggerSound(SoundType.TIMER_START)
+                if (currentStatus == TimerStatus.IDLE) {
+                    triggerSound(SoundType.BGM_START) // 新規開始
+                } else {
+                    triggerSound(SoundType.BGM_RESUME) // 再開
+                }
+
+                val appScope = ProcessLifecycleOwner.get().lifecycleScope
+                FocusTimerManager.startTimer(
+                    scope = appScope,
+                    onFinish = { handleTimerFinish(quest) }
+                )
+            }
+            TimerStatus.BREAK -> {
+                // 休憩モード実行中 -> 一時停止
+                FocusTimerManager.stopTimer()
+                triggerSound(SoundType.TIMER_PAUSE)
+            }
+            TimerStatus.PAUSE_BREAK -> {
+                // 休憩モード一時停止中 -> 再開
+                triggerSound(SoundType.TIMER_START)
+
+                val appScope = ProcessLifecycleOwner.get().lifecycleScope
+                FocusTimerManager.startBreak(
+                    scope = appScope,
+                    onFinish = {
+                        triggerSound(SoundType.TIMER_FINISH)
+                        FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                        _currentBreakActivity.value = null
+                    }
+                )
+            }
         }
     }
 
     fun toggleTimerMode() = FocusTimerManager.toggleMode()
 
     fun stopSession(quest: Quest) {
-        if (timerState.value.isRunning) {
-            FocusTimerManager.stopTimer()
+        // IDLE以外ならセッションを終了してリセット
+        if (timerState.value.status != TimerStatus.IDLE) {
+            FocusTimerManager.resetTimer() // 状態をIDLEに戻す
             updateQuestAccumulatedTime(quest)
             triggerSound(SoundType.TIMER_PAUSE)
         }
@@ -139,7 +172,9 @@ class FocusViewModel(
             }
         }
         val appScope = ProcessLifecycleOwner.get().lifecycleScope
-        if (!timerState.value.isBreak) {
+
+        // 休憩へ移行（IDLE状態から開始）
+        if (!timerState.value.isBreak) { // ここは isBreak フラグ（ヘルパー）を使ってもOK
             shuffleBreakActivity()
             FocusTimerManager.startBreak(
                 scope = appScope,
@@ -150,6 +185,7 @@ class FocusViewModel(
                 }
             )
         } else {
+            // 既に休憩モードだった場合は通常モードへリセット
             FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
             _currentBreakActivity.value = null
         }
@@ -158,6 +194,7 @@ class FocusViewModel(
     // --- Quest Completion ---
     fun completeQuest(quest: Quest) {
         FocusTimerManager.stopTimer()
+        FocusTimerManager.resetTimer() // 完了時はリセット
         triggerSound(SoundType.BGM_STOP)
         viewModelScope.launch {
             val finalTime = calculateFinalActualTime(quest)
