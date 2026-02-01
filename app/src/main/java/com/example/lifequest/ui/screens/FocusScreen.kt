@@ -22,6 +22,7 @@ import com.example.lifequest.FocusMode
 import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.data.local.entity.Subtask
 import com.example.lifequest.logic.TimerState
+import com.example.lifequest.logic.TimerStatus // 追加
 import com.example.lifequest.ui.dialogs.GiveUpConfirmDialog
 import com.example.lifequest.ui.dialogs.QuestDetailsDialog
 import com.example.lifequest.utils.formatDuration
@@ -29,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.lifequest.MainActivity
 import com.example.lifequest.logic.LocalSoundManager
 import com.example.lifequest.ui.components.SoundIconButton
-// import com.example.lifequest.ui.dialogs.PinningConfirmDialog // 削除
 import com.example.lifequest.ui.dialogs.WelcomeBackDialog
 
 @Composable
@@ -62,18 +62,21 @@ fun FocusScreen(
         quest.accumulatedTime
     }
 
-    val targetColor = if (timerState.isBreak) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
+    // TimerStatusに基づいた状態判定
+    val isBreakMode = timerState.status == TimerStatus.BREAK || timerState.status == TimerStatus.PAUSE_BREAK
+    val isTimerRunning = timerState.status == TimerStatus.FOCUS || timerState.status == TimerStatus.BREAK // 秒数が進んでいる状態
+
+    val targetColor = if (isBreakMode) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
     val animatedColor by animateColorAsState(targetColor, label = "focusColor")
     val backgroundColor = animatedColor.copy(alpha = 0.05f)
     val context = LocalContext.current
     val activity = context as? MainActivity
-    val soundManager=LocalSoundManager.current
+    val soundManager = LocalSoundManager.current
 
-
-    //自動固定ロジック
+    // 自動固定ロジック
     val handleStartTimer = {
-        if (!timerState.isRunning && !timerState.isBreak) {
-            // タイマー開始時は問答無用で画面固定を試行
+        // IDLEまたはPAUSE_FOCUSからの開始時は画面固定を試行
+        if (timerState.status == TimerStatus.IDLE || timerState.status == TimerStatus.PAUSE_FOCUS) {
             activity?.startPinning()
             onToggleTimer()
         } else {
@@ -81,13 +84,13 @@ fun FocusScreen(
         }
     }
 
-    //完了時は固定解除
+    // 完了時は固定解除
     val handleComplete = {
         activity?.stopPinning()
         onComplete()
     }
 
-    //中断時は固定解除
+    // 中断時は固定解除
     val handleExit = {
         activity?.stopPinning()
         onExit()
@@ -97,8 +100,6 @@ fun FocusScreen(
     if (isInterrupted) {
         WelcomeBackDialog(onResume = onResumeFromInterruption)
     }
-
-    //PinningConfirmDialogの呼び出しブロック
 
     Box(
         modifier = Modifier
@@ -128,7 +129,7 @@ fun FocusScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = if (timerState.isBreak) "休憩タイム" else quest.title,
+                text = if (isBreakMode) "休憩タイム" else quest.title,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -155,12 +156,13 @@ fun FocusScreen(
                 )
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (!timerState.isBreak) {
+                    if (!isBreakMode) {
                         Surface(
                             onClick = onModeToggle,
                             shape = MaterialTheme.shapes.small,
                             color = Color.Transparent,
-                            enabled = !timerState.isRunning
+                            // IDLE状態のみモード変更可能
+                            enabled = timerState.status == TimerStatus.IDLE
                         ) {
                             Text(
                                 text = timerState.mode.label,
@@ -191,7 +193,7 @@ fun FocusScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (timerState.isBreak && currentBreakActivity != null) {
+            if (isBreakMode && currentBreakActivity != null) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -210,13 +212,13 @@ fun FocusScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             OutlinedButton(onClick = {
                                 soundManager.playClick()
-                                onRerollBreakActivity
+                                onRerollBreakActivity()
                             }) {
                                 Text("パス")
                             }
                             Button(onClick = {
                                 soundManager.playClick()
-                                onCompleteBreakActivity
+                                onCompleteBreakActivity()
                             }) {
                                 Text("実行する (+XP)")
                             }
@@ -235,8 +237,8 @@ fun FocusScreen(
                         colors = IconButtonDefaults.filledIconButtonColors(containerColor = animatedColor)
                     ) {
                         Icon(
-                            imageVector = if (timerState.isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (timerState.isRunning) "停止" else "開始",
+                            imageVector = if (isTimerRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isTimerRunning) "停止" else "開始",
                             modifier = Modifier.size(40.dp)
                         )
                     }
