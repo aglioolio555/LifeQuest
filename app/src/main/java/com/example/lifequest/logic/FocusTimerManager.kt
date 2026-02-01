@@ -11,11 +11,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+// 定数定義
+//todo delete underline
+private const val SECONDS_PER_MINUTE = 1L
+//private const val SECONDS_PER_MINUTE = 60L
+private const val ONE_SECOND_MILLIS = 1000L
+private const val DEFAULT_BREAK_DURATION_MINUTES = 5L
+
 // タイマーの状態
 data class TimerState(
     val mode: FocusMode = FocusMode.RUSH,
-    val initialSeconds: Long = 25 * 60L,
-    val remainingSeconds: Long = 25 * 60L,
+    val initialSeconds: Long = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
+    val remainingSeconds: Long = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
     val isRunning: Boolean = false,
     val isBreak: Boolean = false
 )
@@ -37,8 +44,8 @@ object FocusTimerManager {
 
         _timerState.value = _timerState.value.copy(
             mode = nextMode,
-            initialSeconds = nextMode.minutes * 60L,
-            remainingSeconds = nextMode.minutes * 60L
+            initialSeconds = nextMode.minutes * SECONDS_PER_MINUTE,
+            remainingSeconds = nextMode.minutes * SECONDS_PER_MINUTE
         )
     }
 
@@ -54,8 +61,8 @@ object FocusTimerManager {
             } else {
                 _timerState.value = _timerState.value.copy(
                     mode = FocusMode.RUSH,
-                    initialSeconds = FocusMode.RUSH.minutes * 60L,
-                    remainingSeconds = FocusMode.RUSH.minutes * 60L
+                    initialSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE,
+                    remainingSeconds = FocusMode.RUSH.minutes * SECONDS_PER_MINUTE
                 )
             }
         }
@@ -73,7 +80,7 @@ object FocusTimerManager {
             if (mode == FocusMode.COUNT_UP) {
                 // カウントアップ
                 while (true) {
-                    delay(1000L)
+                    delay(ONE_SECOND_MILLIS)
                     _timerState.value = _timerState.value.copy(
                         remainingSeconds = _timerState.value.remainingSeconds + 1
                     )
@@ -81,7 +88,7 @@ object FocusTimerManager {
             } else {
                 // カウントダウン
                 while (_timerState.value.remainingSeconds > 0) {
-                    delay(1000L)
+                    delay(ONE_SECOND_MILLIS)
                     _timerState.value = _timerState.value.copy(
                         remainingSeconds = _timerState.value.remainingSeconds - 1
                     )
@@ -101,7 +108,7 @@ object FocusTimerManager {
     fun startBreak(scope: CoroutineScope, onFinish: () -> Unit) {
         if (timerJob?.isActive == true) return
 
-        val breakDuration = 5 * 60L
+        val breakDuration = DEFAULT_BREAK_DURATION_MINUTES * SECONDS_PER_MINUTE
 
         _timerState.value = _timerState.value.copy(
             isRunning = true,
@@ -112,7 +119,7 @@ object FocusTimerManager {
 
         timerJob = scope.launch {
             while (_timerState.value.remainingSeconds > 0) {
-                delay(1000L)
+                delay(ONE_SECOND_MILLIS)
                 _timerState.value = _timerState.value.copy(
                     remainingSeconds = _timerState.value.remainingSeconds - 1
                 )

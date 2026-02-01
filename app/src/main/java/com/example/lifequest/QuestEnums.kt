@@ -9,6 +9,10 @@ import com.example.lifequest.ui.theme.*
 
 //デイリークエストの種類定義
 // デイリークエストの種類定義
+data class DailyQuestEvent(
+    val type: DailyQuestType,
+    val expEarned: Int
+)
 enum class DailyQuestType(val title: String, val message: String, val icon: ImageVector, val color: Color) {
     WAKE_UP("早起き達成", "素晴らしい一日の始まりです！", Icons.Default.WbSunny, DailyQuestWakeUp),
     BEDTIME("早寝達成", "昨日はしっかり休めましたね。", Icons.Default.Bedtime, DailyQuestBedTime),
@@ -57,8 +61,11 @@ enum class RepeatMode(val value: Int) {
 
 }
 enum class FocusMode(val minutes: Int, val breakMinutes: Int, val label: String) {
-    RUSH(25, 5, "Rush (25m)"),       // 25分集中 + 5分休憩
-    DEEP_DIVE(45, 10, "Deep (45m)"), // 45分集中 + 10分休憩
+    //todo delete under2lines
+    RUSH(7, 5, "Rush (25m)"),
+    DEEP_DIVE(10, 7, "Deep (45m)"),
+    //    RUSH(25, 5, "Rush (25m)"),       // 25分集中 + 5分休憩
+//    DEEP_DIVE(45, 10, "Deep (45m)"), // 45分集中 + 10分休憩
     COUNT_UP(0, 0, "Free"),          // カウントアップ（無制限）
     BREAK(0, 0, "Break");            // 休憩中
 

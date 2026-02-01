@@ -5,16 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.room.Room
 import com.example.lifequest.data.local.AppDatabase
 import com.example.lifequest.data.repository.MainRepository
 import com.example.lifequest.ui.MainScreen
 import com.example.lifequest.ui.theme.LifeQuestTheme
 import com.example.lifequest.utils.UsageStatsHelper
-import com.example.lifequest.viewmodel.MainViewModel
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
+import com.example.lifequest.viewmodel.QuestViewModel
+import com.example.lifequest.viewmodel.FocusViewModel
+import com.example.lifequest.viewmodel.SettingsViewModel
 import com.example.lifequest.logic.LifeQuestNotificationManager
 import android.Manifest
 import android.provider.Settings
@@ -27,56 +25,66 @@ import android.widget.Toast
 import com.example.lifequest.logic.AppMonitorService
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+
 class MainActivity : ComponentActivity() {
     private lateinit var notificationManager: LifeQuestNotificationManager
+    // ViewModelをプロパティとして保持
+    private lateinit var questViewModel: QuestViewModel
+    private lateinit var focusViewModel: FocusViewModel
+    private lateinit var settingsViewModel: SettingsViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // シングルトンインスタンスを取得するように変更
         val db = AppDatabase.getDatabase(applicationContext)
-
-        val repository = MainRepository(db.userStatusDao(), questDao = db.questDao(), questLogDao = db.questLogDao(), db.breakActivityDao(), db.dailyQuestDao(),db.extraQuestDao(), db.allowedAppDao())
+        val repository = MainRepository(
+            db.userStatusDao(),
+            db.questDao(),
+            db.questLogDao(),
+            db.breakActivityDao(),
+            db.dailyQuestDao(),
+            db.extraQuestDao(),
+            db.allowedAppDao()
+        )
 
         val usageStatsHelper = UsageStatsHelper(applicationContext)
-
         notificationManager = LifeQuestNotificationManager(applicationContext)
 
+        // Factory作成（複数ViewModel対応）
         val viewModelFactory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
-                    val vm = MainViewModel(repository, usageStatsHelper)
-                    vm.notificationManager = notificationManager // VMに渡す
-                    @Suppress("UNCHECKED_CAST")
-                    return vm as T
+                return when {
+                    modelClass.isAssignableFrom(QuestViewModel::class.java) -> {
+                        QuestViewModel(repository, usageStatsHelper) as T
+                    }
+                    modelClass.isAssignableFrom(FocusViewModel::class.java) -> {
+                        val vm = FocusViewModel(repository, usageStatsHelper)
+                        vm.notificationManager = notificationManager // NotificationManagerを渡す
+                        vm as T
+                    }
+                    modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
+                        SettingsViewModel(repository, usageStatsHelper) as T
+                    }
+                    else -> throw IllegalArgumentException("Unknown ViewModel class")
                 }
-                throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
 
-        val viewModel = ViewModelProvider(this, viewModelFactory)[MainViewModel::class.java]
+        val provider = ViewModelProvider(this, viewModelFactory)
+        questViewModel = provider[QuestViewModel::class.java]
+        focusViewModel = provider[FocusViewModel::class.java]
+        settingsViewModel = provider[SettingsViewModel::class.java]
 
-        // ★追加: アプリ全体のライフサイクル監視
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStop(owner: LifecycleOwner) {
-                // アプリがバックグラウンドへ
-                viewModel.onAppBackgrounded()
-            }
-
-            override fun onStart(owner: LifecycleOwner) {
-                // アプリがフォアグラウンドへ
-                viewModel.onAppForegrounded()
-            }
-        })
-
-        // 通知権限の要求 (Android 13+) - 簡易実装
+        // 権限チェック
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
-        //追加: 権限チェックと要求
         checkRequiredPermissions()
+
+        // アプリ監視サービスの制御
         lifecycleScope.launch {
-            // repeatOnLifecycle(Lifecycle.State.STARTED) を使うとより丁寧ですが、ここでは簡易的にcollectします
-            viewModel.timerState.collect { state ->
+            focusViewModel.timerState.collect { state ->
                 // 集中モード中(isRunning) かつ 休憩中ではない(!isBreak) 場合に監視
                 if (state.isRunning && !state.isBreak) {
                     startAppMonitorService()
@@ -85,12 +93,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
         setContent {
             LifeQuestTheme {
-                MainScreen(viewModel = viewModel)
+                MainScreen(
+                    questViewModel = questViewModel,
+                    focusViewModel = focusViewModel,
+                    settingsViewModel = settingsViewModel
+                )
             }
         }
-
     }
 
     // ★追加: 画面固定の開始
@@ -110,14 +122,12 @@ class MainActivity : ComponentActivity() {
             // 固定されていない状態で呼ぶと例外が出る場合があるため
         }
     }
+
     private fun checkRequiredPermissions() {
-        // 1. 使用状況アクセス権限のチェック
         if (!hasUsageStatsPermission()) {
             Toast.makeText(this, "集中モードには「使用状況へのアクセス」許可が必要です", Toast.LENGTH_LONG).show()
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         }
-
-        // 2. オーバーレイ権限のチェック (Android 6.0+)
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(this, "ブロック画面を表示するために「他のアプリの上に重ねて表示」許可が必要です", Toast.LENGTH_LONG).show()
             val intent = Intent(
@@ -137,6 +147,7 @@ class MainActivity : ComponentActivity() {
         )
         return mode == AppOpsManager.MODE_ALLOWED
     }
+
     private fun startAppMonitorService() {
         val intent = Intent(this, AppMonitorService::class.java)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -146,7 +157,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ★追加: サービス停止メソッド
     private fun stopAppMonitorService() {
         val intent = Intent(this, AppMonitorService::class.java)
         stopService(intent)

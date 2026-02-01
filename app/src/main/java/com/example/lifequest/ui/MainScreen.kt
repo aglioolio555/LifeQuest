@@ -1,7 +1,5 @@
 package com.example.lifequest.ui
 
-import android.content.Intent
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,8 +8,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -32,8 +28,13 @@ import com.example.lifequest.model.QuestWithSubtasks
 import com.example.lifequest.ui.dialogs.DailyQuestCompletionDialog
 import com.example.lifequest.ui.dialogs.QuestEditDialog
 import com.example.lifequest.ui.screens.*
-import com.example.lifequest.viewmodel.MainViewModel
+import com.example.lifequest.viewmodel.QuestViewModel
+import com.example.lifequest.viewmodel.FocusViewModel
+import com.example.lifequest.viewmodel.SettingsViewModel
+import com.example.lifequest.logic.FocusTimerManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.launch
 
 // --- Tech Noir Animated Background ---
 @Composable
@@ -41,7 +42,7 @@ fun TechNoirAnimatedBackground(modifier: Modifier = Modifier) {
     val infiniteTransition = rememberInfiniteTransition(label = "gridAnimation")
     val offsetY by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 100f, // グリッドの間隔分移動
+        targetValue = 100f,
         animationSpec = infiniteRepeatable(
             animation = tween(3000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
@@ -50,12 +51,11 @@ fun TechNoirAnimatedBackground(modifier: Modifier = Modifier) {
     )
 
     Canvas(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val gridSize = 100f // グリッドのサイズ
+        val gridSize = 100f
         val width = size.width
         val height = size.height
-        val gridColor = Color(0xFF40E0FF).copy(alpha = 0.05f) // 薄いシアン
+        val gridColor = Color(0xFF40E0FF).copy(alpha = 0.05f)
 
-        // 縦線
         for (x in 0..width.toInt() step gridSize.toInt()) {
             drawLine(
                 color = gridColor,
@@ -65,7 +65,6 @@ fun TechNoirAnimatedBackground(modifier: Modifier = Modifier) {
             )
         }
 
-        // 横線 (動く)
         val startY = (offsetY % gridSize) - gridSize
         for (y in startY.toInt()..height.toInt() step gridSize.toInt()) {
             drawLine(
@@ -81,25 +80,34 @@ fun TechNoirAnimatedBackground(modifier: Modifier = Modifier) {
 enum class ExportType { LOGS, DAILY_QUESTS }
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
-    // ... (既存の状態取得コード) ...
-    val status by viewModel.uiState.collectAsState()
-    val quests by viewModel.questList.collectAsState()
-    val urgentQuest by viewModel.urgentQuest.collectAsState()
-    val futureQuests by viewModel.futureQuestList.collectAsState()
-    val timerState by viewModel.timerState.collectAsState()
-    val breakActivities by viewModel.breakActivities.collectAsState()
-    val currentBreakActivity by viewModel.currentBreakActivity.collectAsState()
-    val statistics by viewModel.statistics.collectAsState()
-    val dailyProgress by viewModel.dailyProgress.collectAsState()
-    val missingPermission by viewModel.missingPermission.collectAsState()
-    val isInterrupted by viewModel.isInterrupted.collectAsState()
-    val suggestedExtraQuest by viewModel.suggestedExtraQuest.collectAsState()
-    val extraQuests by viewModel.extraQuests.collectAsState()
-    val popupQueue by viewModel.popupQueue.collectAsState()
+fun MainScreen(
+    questViewModel: QuestViewModel,
+    focusViewModel: FocusViewModel,
+    settingsViewModel: SettingsViewModel
+) {
+    // --- State from ViewModels ---
+    val status by questViewModel.uiState.collectAsState()
+    val quests by questViewModel.questList.collectAsState()
+    val urgentQuest by questViewModel.urgentQuest.collectAsState()
+    val futureQuests by questViewModel.futureQuestList.collectAsState()
+    val dailyProgress by questViewModel.dailyProgress.collectAsState()
+    val suggestedExtraQuest by questViewModel.suggestedExtraQuest.collectAsState()
+    // ポップアップは両方から来る可能性があるので統合が必要だが、簡易的に両方監視
+    val questPopupQueue by questViewModel.popupQueue.collectAsState()
+    val focusPopupQueue by focusViewModel.popupQueue.collectAsState()
+    // リスト結合
+    val popupQueue = questPopupQueue + focusPopupQueue
 
-    //ボーナスミッションのロード状態
-    val isBonusMissionLoading by viewModel.isBonusMissionLoading.collectAsState()
+    val timerState by focusViewModel.timerState.collectAsState()
+    val breakActivities by settingsViewModel.breakActivities.collectAsState() // SettingsVMから
+    val currentBreakActivity by focusViewModel.currentBreakActivity.collectAsState()
+    val isInterrupted by focusViewModel.isInterrupted.collectAsState()
+    val isBonusMissionLoading by focusViewModel.isBonusMissionLoading.collectAsState()
+
+    val statistics by settingsViewModel.statistics.collectAsState()
+    val extraQuests by settingsViewModel.extraQuests.collectAsState()
+    val allowedApps by settingsViewModel.allowedApps.collectAsState()
+
     var focusingQuestId by remember { mutableStateOf<Int?>(null) }
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val context = LocalContext.current
@@ -109,17 +117,21 @@ fun MainScreen(viewModel: MainViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var editingQuestData by remember { mutableStateOf<QuestWithSubtasks?>(null) }
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val coroutineScope = rememberCoroutineScope()
 
+    // Toast Event
     LaunchedEffect(Unit) {
-        viewModel.toastEvent.collect { message ->
+        merge(focusViewModel.toastEvent).collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshPermissionCheck()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                questViewModel.refreshPermissionCheck()
+                settingsViewModel.refreshPermissionCheck()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
@@ -128,9 +140,9 @@ fun MainScreen(viewModel: MainViewModel) {
         }
     }
 
-    // ★ViewModelからの音イベントを監視して再生
+    // Sound Event: 3つのViewModelからのイベントをマージして監視
     LaunchedEffect(Unit) {
-        viewModel.soundEvent.collect { soundType ->
+        merge(questViewModel.soundEvent, focusViewModel.soundEvent, settingsViewModel.soundEvent).collect { soundType ->
             soundManager.play(soundType)
         }
     }
@@ -141,14 +153,12 @@ fun MainScreen(viewModel: MainViewModel) {
             delay(1000L)
         }
     }
-    //サブタスク追加等の変更を即座にダイアログに反映させるための同期処理
+
+    // 編集ダイアログ同期
     LaunchedEffect(quests, futureQuests) {
         editingQuestData?.let { current ->
-            // 現在編集中のクエストIDと同じものを最新リストから探す
             val updated = quests.find { it.quest.id == current.quest.id }
                 ?: futureQuests.find { it.quest.id == current.quest.id }
-
-            // 最新データが見つかり、内容が更新されていれば差し替える
             if (updated != null && updated != current) {
                 editingQuestData = updated
             }
@@ -160,21 +170,20 @@ fun MainScreen(viewModel: MainViewModel) {
     ) { uri ->
         if (uri != null && exportType != null) {
             when (exportType) {
-                ExportType.LOGS -> viewModel.exportLogsToCsv(context, uri)
-                ExportType.DAILY_QUESTS -> viewModel.exportDailyQuestsToCsv(context, uri)
-                else -> { /* 何もしない */
-                }
+                ExportType.LOGS -> settingsViewModel.exportLogsToCsv(context, uri)
+                ExportType.DAILY_QUESTS -> settingsViewModel.exportDailyQuestsToCsv(context, uri)
+                else -> {}
             }
-
             exportType = null
         }
     }
+
     CompositionLocalProvider(LocalSoundManager provides soundManager) {
         Scaffold(
             bottomBar = {
                 if (currentScreen != Screen.FOCUS && currentScreen != Screen.SETTINGS && currentScreen != Screen.WHITELIST) {
                     NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), // 少し透過
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                         contentColor = MaterialTheme.colorScheme.primary
                     ) {
                         Screen.entries.filter { it != Screen.FOCUS && it != Screen.SETTINGS && it != Screen.WHITELIST }
@@ -200,42 +209,53 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
             }
         ) { innerPadding ->
-            // ★背景を適用
             Box(modifier = Modifier.fillMaxSize()) {
                 TechNoirAnimatedBackground()
 
                 Box(modifier = Modifier.padding(innerPadding).fillMaxSize().imePadding()) {
                     when (currentScreen) {
                         Screen.HOME -> {
-                            // ... (HomeScreen呼び出し)
                             HomeScreen(
                                 status = status,
                                 urgentQuestData = urgentQuest,
                                 suggestedExtraQuest = suggestedExtraQuest,
                                 onStartBonusMission = { extra ->
-                                    viewModel.startBonusMission(extra, soundManager)
-                                    activity?.startPinning()
-                                    currentScreen = Screen.FOCUS
+                                    coroutineScope.launch {
+                                        focusViewModel.setBonusMissionLoading(true)
+                                        focusViewModel.isBonusMissionRunning = true // フラグセット
+                                        val newQuest = questViewModel.prepareBonusMission(extra)
+                                        // Timer初期化と開始
+                                        FocusTimerManager.initializeModeBasedOnQuest(newQuest.estimatedTime)
+                                        focusViewModel.toggleTimer(newQuest, soundManager)
+
+                                        focusingQuestId = newQuest.id
+                                        activity?.startPinning()
+
+                                        delay(200) // DB反映待ち
+                                        focusViewModel.setBonusMissionLoading(false)
+                                        currentScreen = Screen.FOCUS
+                                    }
                                 },
                                 timerState = timerState,
                                 currentTime = currentTime,
                                 onOpenSettings = {
                                     soundManager.playClick()
                                     currentScreen = Screen.SETTINGS
-                                                 },
+                                },
                                 onEdit = { editingQuestData = it },
                                 onToggleTimer = { quest ->
                                     if (!timerState.isRunning) {
                                         focusingQuestId = quest.id
-                                        viewModel.toggleTimer(quest, soundManager)
+                                        FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                                        focusViewModel.toggleTimer(quest, soundManager)
                                         activity?.startPinning()
                                     }
                                     currentScreen = Screen.FOCUS
                                 },
                                 onComplete = { quest ->
-                                    viewModel.completeQuest(quest)
+                                    focusViewModel.completeQuest(quest) // 完了処理はFocusVMへ
                                 },
-                                onSubtaskToggle = { viewModel.toggleSubtask(it) },
+                                onSubtaskToggle = { questViewModel.toggleSubtask(it) },
                             )
                         }
 
@@ -248,41 +268,31 @@ fun MainScreen(viewModel: MainViewModel) {
                                 onEdit = { editingQuestData = it },
                                 onToggleTimer = { quest ->
                                     focusingQuestId = quest.id
-                                    viewModel.toggleTimer(quest, soundManager)
+                                    FocusTimerManager.initializeModeBasedOnQuest(quest.estimatedTime)
+                                    focusViewModel.toggleTimer(quest, soundManager)
                                     activity?.startPinning()
                                     currentScreen = Screen.FOCUS
                                 },
-                                onComplete = { quest ->
-                                    viewModel.completeQuest(quest)
-                                },
-                                onDelete = { viewModel.deleteQuest(it) },
-                                onSubtaskToggle = { viewModel.toggleSubtask(it) }
+                                onComplete = { quest -> focusViewModel.completeQuest(quest) },
+                                onDelete = { questViewModel.deleteQuest(it) },
+                                onSubtaskToggle = { questViewModel.toggleSubtask(it) }
                             )
                         }
 
                         Screen.ADD -> {
                             AddQuestScreen(
                                 onAddQuest = { title, note, date, repeat, category, time, subtasks ->
-                                    viewModel.addQuest(
-                                        title,
-                                        note,
-                                        date,
-                                        repeat,
-                                        category,
-                                        time,
-                                        subtasks
-                                    )
+                                    questViewModel.addQuest(title, note, date, repeat, category, time, subtasks)
                                     currentScreen = Screen.LIST
                                 }, soundManager = soundManager
                             )
                         }
-                        // ... (FOCUS, STATISTICS, SETTINGS も同様に) ...
+
                         Screen.FOCUS -> {
-                            // リストの先頭ではなく、選択されたIDのクエストを探す
-                            // IDが指定されていない、または見つからない場合は、バックアップとして「実行中のクエスト」または「リストの先頭」を使う
                             val activeQuest = quests.find { it.quest.id == focusingQuestId }
-                                ?: quests.find { it.quest.lastStartTime != null } // 実行中のものを優先
-                                ?: quests.firstOrNull() // それでもなければ先頭
+                                ?: quests.find { it.quest.lastStartTime != null }
+                                ?: quests.firstOrNull()
+
                             if (activeQuest != null) {
                                 FocusScreen(
                                     questWithSubtasks = activeQuest,
@@ -290,34 +300,26 @@ fun MainScreen(viewModel: MainViewModel) {
                                     currentBreakActivity = currentBreakActivity,
                                     currentTime = currentTime,
                                     isInterrupted = isInterrupted,
-                                    onResumeFromInterruption = { viewModel.resumeFromInterruption() },
+                                    onResumeFromInterruption = { focusViewModel.resumeFromInterruption() },
                                     onToggleTimer = {
-                                        viewModel.toggleTimer(
-                                            activeQuest.quest,
-                                            soundManager
-                                        )
+                                        focusViewModel.toggleTimer(activeQuest.quest, soundManager)
                                     },
-                                    onModeToggle = { viewModel.toggleTimerMode() },
+                                    onModeToggle = { focusViewModel.toggleTimerMode() },
                                     onComplete = {
-                                        viewModel.completeQuest(activeQuest.quest)
+                                        focusViewModel.completeQuest(activeQuest.quest)
                                         focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
-                                    onSubtaskToggle = { viewModel.toggleSubtask(it) },
+                                    onSubtaskToggle = { questViewModel.toggleSubtask(it) },
                                     onExit = {
-                                        viewModel.stopSession(activeQuest.quest)
+                                        focusViewModel.stopSession(activeQuest.quest)
                                         focusingQuestId = null
                                         currentScreen = Screen.HOME
                                     },
-                                    onRerollBreakActivity = { viewModel.shuffleBreakActivity() },
-                                    onCompleteBreakActivity = {
-                                        viewModel.completeBreakActivity(
-                                            soundManager
-                                        )
-                                    }
+                                    onRerollBreakActivity = { focusViewModel.shuffleBreakActivity() },
+                                    onCompleteBreakActivity = { focusViewModel.completeBreakActivity() }
                                 )
                             } else if (isBonusMissionLoading) {
-                                //ボーナスミッション準備中のローディング表示
                                 Box(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
@@ -332,24 +334,12 @@ fun MainScreen(viewModel: MainViewModel) {
                         Screen.STATISTICS -> StatisticsScreen(statistics = statistics)
                         Screen.SETTINGS -> {
                             SettingScreen(
-                                activities = breakActivities,
+                                activities = breakActivities, // SettingsVMから取得するよう修正済み
                                 userStatus = status,
-                                onAddActivity = { title, desc ->
-                                    viewModel.addBreakActivity(
-                                        title,
-                                        desc
-                                    )
-                                },
-                                onDeleteActivity = { viewModel.deleteBreakActivity(it) },
-                                onUpdateActivity = { viewModel.updateBreakActivity(it) },
-                                onUpdateTargetTimes = { wh, wm, bh, bm ->
-                                    viewModel.updateTargetTimes(
-                                        wh,
-                                        wm,
-                                        bh,
-                                        bm
-                                    )
-                                },
+                                onAddActivity = { title, desc -> settingsViewModel.addBreakActivity(title, desc) },
+                                onDeleteActivity = { settingsViewModel.deleteBreakActivity(it) },
+                                onUpdateActivity = { settingsViewModel.updateBreakActivity(it) },
+                                onUpdateTargetTimes = { wh, wm, bh, bm -> settingsViewModel.updateTargetTimes(wh, wm, bh, bm) },
                                 onExportQuestLogs = {
                                     exportType = ExportType.LOGS
                                     exportLauncher.launch("quest_logs_backup.csv")
@@ -359,16 +349,9 @@ fun MainScreen(viewModel: MainViewModel) {
                                     exportLauncher.launch("daily_quests_backup.csv")
                                 },
                                 extraQuests = extraQuests,
-                                onAddExtraQuest = { title, desc, minutes,category ->
-                                    viewModel.addExtraQuest(
-                                        title,
-                                        desc,
-                                        minutes,
-                                        category
-                                    )
-                                },
-                                onDeleteExtraQuest = { extra -> viewModel.deleteExtraQuest(extra) },
-                                onUpdateExtraQuest = { extra -> viewModel.updateExtraQuest(extra) },
+                                onAddExtraQuest = { title, desc, minutes, category -> settingsViewModel.addExtraQuest(title, desc, minutes, category) },
+                                onDeleteExtraQuest = { settingsViewModel.deleteExtraQuest(it) },
+                                onUpdateExtraQuest = { settingsViewModel.updateExtraQuest(it) },
                                 onNavigateToWhitelist = {
                                     soundManager.playClick()
                                     currentScreen = Screen.WHITELIST
@@ -385,7 +368,7 @@ fun MainScreen(viewModel: MainViewModel) {
                         }
                         Screen.WHITELIST -> {
                             AppWhitelistScreen(
-                                viewModel = viewModel,
+                                viewModel = settingsViewModel, // AppWhitelistScreenの引数も修正が必要だが、一旦SettingsVMを渡す前提
                                 onBack = {
                                     soundManager.playClick()
                                     currentScreen = Screen.SETTINGS
@@ -401,14 +384,15 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
 
-        // ... (Popup, Dialog handling) ...
+        // Popup Handling
         if (popupQueue.isNotEmpty()) {
             val currentEvent = popupQueue.first()
             DailyQuestCompletionDialog(
                 type = currentEvent.type,
                 expEarned = currentEvent.expEarned,
                 onDismiss = {
-                    viewModel.dismissCurrentPopup()
+                    questViewModel.dismissCurrentPopup()
+                    focusViewModel.dismissCurrentPopup()
                 }
             )
         }
@@ -418,16 +402,13 @@ fun MainScreen(viewModel: MainViewModel) {
                 questWithSubtasks = editingQuestData!!,
                 onDismiss = { editingQuestData = null },
                 onConfirm = { updatedQuest ->
-                    viewModel.updateQuest(updatedQuest)
+                    questViewModel.updateQuest(updatedQuest)
                     editingQuestData = null
                 },
                 onAddSubtask = { title ->
-                    viewModel.addSubtask(
-                        editingQuestData!!.quest.id,
-                        title
-                    )
+                    questViewModel.addSubtask(editingQuestData!!.quest.id, title)
                 },
-                onDeleteSubtask = { subtask -> viewModel.deleteSubtask(subtask) }
+                onDeleteSubtask = { subtask -> questViewModel.deleteSubtask(subtask) }
             )
         }
     }
